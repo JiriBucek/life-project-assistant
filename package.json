@@ -1,5 +1,5 @@
 {
-  "name": "ellie",
+  "name": "ellie-life-project-assistant",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,6 +11,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "test:e2e": "playwright test",
+    "vercel-build": "node scripts/use-postgres.mjs && prisma generate && prisma db push --skip-generate --accept-data-loss && SEED_ONLY_IF_EMPTY=1 tsx prisma/seed.ts && next build",
     "postinstall": "prisma generate"
   },
   "prisma": {

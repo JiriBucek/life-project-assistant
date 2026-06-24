@@ -12,8 +12,8 @@ export function AppHeader({
           <span className="font-serif text-2xl font-semibold tracking-tight text-ink">
             Ellie
           </span>
-          <span className="hidden text-xs text-ink-faint sm:inline">
-            your life, intentionally planned
+          <span className="hidden font-serif text-xl tracking-tight text-ink-soft sm:inline">
+            Life Project Assistant
           </span>
         </Link>
 

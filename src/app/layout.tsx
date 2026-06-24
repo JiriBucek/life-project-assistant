@@ -16,7 +16,7 @@ const serif = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Ellie — your life, intentionally planned",
+  title: "Ellie Life Project Assistant — your life, intentionally planned",
   description:
     "Turn meaningful aspirations into achievable projects. Begin with why.",
 };

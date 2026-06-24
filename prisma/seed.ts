@@ -3,6 +3,16 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  // In production builds we only want to seed a brand-new database, never
+  // overwrite real data on redeploys. Locally, `npm run db:seed` resets fully.
+  if (process.env.SEED_ONLY_IF_EMPTY) {
+    const existing = await prisma.lifeArea.count();
+    if (existing > 0) {
+      console.log("Database already has data — skipping seed.");
+      return;
+    }
+  }
+
   // Clean slate so re-seeding is idempotent.
   await prisma.reflection.deleteMany();
   await prisma.epic.deleteMany();
@@ -126,7 +136,9 @@ async function main() {
   void relationships;
   void base;
 
-  console.log("Seeded Ellie with sample Life Map and project journey.");
+  console.log(
+    "Seeded Ellie Life Project Assistant with sample Life Map and project journey.",
+  );
 }
 
 main()

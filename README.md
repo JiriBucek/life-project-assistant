@@ -1,4 +1,4 @@
-# Ellie — Life Project Assistant
+# Ellie Life Project Assistant
 
 A meaning-first life planning tool. Instead of starting with tasks, Ellie starts
 with your **life areas**, the **values** that matter in them, and the
@@ -92,24 +92,47 @@ src/
 Deliberately **out of scope** for v0: auth, AI, teams, habits, calendar,
 notifications, analytics, native mobile, and the Epic→Story→Task layer.
 
-## Deploying a shared demo
+## Deploying to Vercel (shareable link)
 
-SQLite is perfect locally, but serverless hosts (like Vercel) have an ephemeral,
-read-only filesystem — so for a **hosted, shared** instance use a managed Postgres.
+Locally the app uses **SQLite** (zero setup). Vercel's servers don't keep files
+between requests, so the hosted version uses **Postgres** instead. This switch is
+automated — you don't change any code:
 
-1. Create a free Postgres database (e.g. [Neon](https://neon.tech) or Vercel
-   Postgres) and copy its connection string.
-2. In `prisma/schema.prisma`, change the datasource provider:
-   ```prisma
-   datasource db {
-     provider = "postgresql"
-     url      = env("DATABASE_URL")
-   }
+- `scripts/use-postgres.mjs` rewrites the Prisma datasource to PostgreSQL **only
+  during the Vercel build** (in Vercel's throwaway checkout). Your local schema
+  stays SQLite, so `npm run dev` and the tests keep working unchanged.
+- The `vercel-build` script (in `package.json`) runs on Vercel: swap to Postgres
+  → generate client → create the tables (`prisma db push`) → seed the sample map
+  **once** (only if the database is empty) → `next build`.
+
+### One-time setup
+
+1. **Push the repo to GitHub** (`git init` is already done):
+   ```bash
+   git add -A && git commit -m "Ellie Life Project Assistant PoC"
+   gh repo create ellie-life-project-assistant --private --source=. --push   # or create a repo in the GitHub UI and push
    ```
-3. Set `DATABASE_URL` to the Postgres string (locally in `.env`, and as an env var
-   in your host).
-4. `npx prisma db push` (and `npm run db:seed` if you want sample data), then
-   deploy. `postinstall` already runs `prisma generate` on the host.
+2. **Import it into Vercel** → New Project → pick the repo → Deploy. (The first
+   deploy will fail until the database exists — that's expected, do step 3.)
+3. **Add Postgres**: in the Vercel project, open **Storage → Create Database →
+   Postgres**, and connect it to the project. Vercel adds the connection
+   environment variables automatically.
+4. **Map two env vars** (Project → Settings → Environment Variables) so Prisma
+   finds them — set both to the values the integration created:
+   - `DATABASE_URL` → the **pooled** connection string (`...POSTGRES_PRISMA_URL`)
+   - `DIRECT_URL` → the **direct / non-pooled** string (`...POSTGRES_URL_NON_POOLING`)
+5. **Redeploy** (Deployments → ⋯ → Redeploy). The build creates the schema and
+   seeds the sample map, and you get a live
+   `https://ellie-life-project-assistant-….vercel.app` link.
 
-For a Postgres-free option, deploy to a host with a **persistent volume**
-(Railway, Fly.io) and keep SQLite.
+Every later `git push` redeploys; the seed won't overwrite real data (it only
+runs on an empty database).
+
+> **Heads up — no accounts yet.** Login was intentionally out of scope, so anyone
+> with the link shares the **same** life map. That's fine for letting one person
+> explore the concept; it's not multi-tenant.
+
+### Prefer to keep SQLite?
+
+Deploy to a host with a **persistent volume** (Railway, Fly.io) instead of Vercel,
+and skip the Postgres switch entirely.
