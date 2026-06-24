@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
+/*
+  Ellie design language — "calm, intentional, spacious, supportive, non-judgmental."
+  Warm paper background, soft sage/clay accents, generous air, gentle motion.
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f7f5f0; /* warm off-white */
+  --paper-raised: #fffefb;
+  --ink: #2f2c28; /* warm near-black */
+  --ink-soft: #6b655c;
+  --ink-faint: #9c958a;
+  --line: #e7e2d8;
+  --line-strong: #d8d2c4;
+
+  --sage: #7c9885; /* primary accent */
+  --sage-deep: #5f7a68;
+  --sage-tint: #e8efe8;
+  --clay: #c08a6a; /* warm secondary */
+  --clay-tint: #f3e7dd;
+  --sky: #8aa9c0;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-sage: var(--sage);
+  --color-sage-deep: var(--sage-deep);
+  --color-sage-tint: var(--sage-tint);
+  --color-clay: var(--clay);
+  --color-clay-tint: var(--clay-tint);
+  --color-sky: var(--sky);
+
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-serif), ui-serif, Georgia, serif;
+
+  --radius-xl: 1.25rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background-color: var(--paper);
+  color: var(--ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Quiet, calm scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Gentle entrance used across the app */
+@keyframes ellie-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ellie-rise {
+  animation: ellie-rise 0.4s ease both;
+}
+
+/* React Flow tuning to keep the map soft */
+.react-flow__attribution {
+  display: none;
 }

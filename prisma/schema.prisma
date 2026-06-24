@@ -1,0 +1,85 @@
+// Ellie — Life Project Assistant
+// Hierarchy: LifeArea -> Value -> Project -> Initiative -> Epic, plus Reflection.
+// Single-user PoC: no auth, no User model (everything is the implicit one user).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model LifeArea {
+  id           String   @id @default(cuid())
+  name         String
+  satisfaction Int      @default(5) // 1–10
+  // Position on the Life Map canvas (React Flow coords)
+  x            Float    @default(0)
+  y            Float    @default(0)
+  order        Int      @default(0)
+  values       Value[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Value {
+  id        String   @id @default(cuid())
+  name      String
+  area      LifeArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  areaId    String
+  // A Value can power many Projects; a Project can serve many Values.
+  projects  Project[] @relation("ProjectValues")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id           String       @id @default(cuid())
+  name         String
+  whyStatement String       @default("") // the "Why" / value statement (required in UI)
+  values       Value[]      @relation("ProjectValues")
+  initiatives  Initiative[]
+  reflections  Reflection[]
+  // Position on the Life Map canvas
+  x            Float        @default(0)
+  y            Float        @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Initiative {
+  id        String   @id @default(cuid())
+  title     String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  // Timeline placement, measured in days from the project's timeline origin.
+  startDay  Int      @default(0)
+  duration  Int      @default(14) // length in days (resizable)
+  lane      Int      @default(0)  // vertical row on the timeline
+  epics     Epic[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Epic {
+  id           String     @id @default(cuid())
+  title        String
+  isComplete   Boolean    @default(false)
+  initiative   Initiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+  initiativeId String
+  order        Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Reflection {
+  id          String   @id @default(cuid())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId   String
+  whatChanged String
+  why         String
+  nextStep    String
+  createdAt   DateTime @default(now())
+}
