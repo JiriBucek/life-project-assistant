@@ -367,12 +367,21 @@ function LifeMapInner({
     return [...areaNodes, ...projectNodes];
   }, [areas, projects]);
 
-  // Rebuild nodes whenever fresh server data arrives, while leaving local drag
-  // interactions untouched between server updates (render-phase sync pattern).
+  // Rebuild nodes when the underlying data actually changes, while leaving local
+  // drag interactions untouched between updates (render-phase sync pattern).
+  //
+  // Gate on a content signature rather than reference identity: while an
+  // optimistic transition is pending, React re-runs the reducer on every render,
+  // producing fresh array references with identical content. Comparing refs
+  // would loop forever; the signature stays stable until the data truly changes.
+  const dataKey = useMemo(
+    () => JSON.stringify({ areas, projects }),
+    [areas, projects],
+  );
   const [nodes, setNodes] = useState<Node[]>(buildNodes);
-  const [prevData, setPrevData] = useState({ areas, projects });
-  if (prevData.areas !== areas || prevData.projects !== projects) {
-    setPrevData({ areas, projects });
+  const [syncedKey, setSyncedKey] = useState(dataKey);
+  if (syncedKey !== dataKey) {
+    setSyncedKey(dataKey);
     setNodes(buildNodes());
   }
 
