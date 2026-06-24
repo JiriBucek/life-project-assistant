@@ -251,9 +251,16 @@ function LifeMapInner({
   const connectFrom = useRef<{ valueId: string } | null>(null);
   const [connectingFromValue, setConnectingFromValue] = useState(false);
 
-  // Optimistic mirror of the server data — see the reducer above.
+  // Optimistic mirror of the server data — see the reducer above. The base must
+  // be a stable reference: useOptimistic re-runs the reducer whenever the base
+  // identity changes, and a fresh object each render would loop forever against
+  // the render-phase node sync below.
+  const base = useMemo(
+    () => ({ areas: serverAreas, projects: serverProjects }),
+    [serverAreas, serverProjects],
+  );
   const [optimistic, applyOptimistic] = useOptimistic<LifeMapState, LifeMapAction>(
-    { areas: serverAreas, projects: serverProjects },
+    base,
     lifeMapReducer,
   );
   const { areas, projects } = optimistic;
