@@ -127,8 +127,9 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
   await expect(page.getByText("Record & mix").first()).toBeVisible();
 
   // --- 7. Add Epics to the selected initiative ---
-  // Select the first initiative on the timeline.
-  await page.getByText("Write the songs").first().click();
+  // Select the first initiative on the timeline (target the bar itself — the
+  // current-phase status chip echoes the title too).
+  await page.getByTestId("initiative-bar").getByText("Write the songs").click();
   const epicInput = page.getByPlaceholder("+ add an epic");
   await epicInput.fill("Draft 10 song ideas");
   await epicInput.press("Enter");
@@ -196,7 +197,8 @@ test("the timeline supports dragging an initiative to a later start", async ({
   await page.getByPlaceholder("Name an initiative…").fill("Learn the basics");
   await page.getByRole("button", { name: "+ Initiative" }).click();
 
-  const bar = page.getByText("Learn the basics").first();
+  // Target the timeline bar specifically (the current-phase chip echoes the title).
+  const bar = page.getByTestId("initiative-bar").getByText("Learn the basics");
   await expect(bar).toBeVisible();
   const before = await bar.boundingBox();
   expect(before).not.toBeNull();
@@ -210,18 +212,12 @@ test("the timeline supports dragging an initiative to a later start", async ({
   await page.mouse.up();
 
   await page.waitForTimeout(500);
-  const after = await page
-    .getByText("Learn the basics")
-    .first()
-    .boundingBox();
+  const after = await bar.boundingBox();
   expect(after!.x).toBeGreaterThan(before!.x + 40);
 
   // The new start position persists across a reload.
   await page.reload();
-  const persisted = await page
-    .getByText("Learn the basics")
-    .first()
-    .boundingBox();
+  const persisted = await bar.boundingBox();
   expect(persisted!.x).toBeGreaterThan(before!.x + 40);
 });
 

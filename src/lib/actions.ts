@@ -2,6 +2,17 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import {
+  addDays,
+  dayDiff,
+  durationDays,
+  fromDateInputValue,
+  todayUTC,
+} from "@/lib/timeline";
+
+// A fresh project defaults to a calm 12-week journey starting today — enough
+// to feel real, easy to adjust on the timeline.
+const DEFAULT_PROJECT_DAYS = 84;
 
 // ---------------------------------------------------------------------------
 // Life Areas
@@ -85,10 +96,13 @@ export async function createProject(input: {
     throw new Error("A project needs a name and a Why.");
   }
   const count = await prisma.project.count();
+  const startDate = todayUTC();
   const project = await prisma.project.create({
     data: {
       name,
       whyStatement,
+      startDate,
+      targetDate: addDays(startDate, DEFAULT_PROJECT_DAYS),
       x: 540,
       y: 120 + count * 200,
       values: { connect: input.valueIds.map((id) => ({ id })) },
@@ -96,6 +110,46 @@ export async function createProject(input: {
   });
   revalidatePath("/");
   return project.id;
+}
+
+// The project's timeframe — its journey from Start to intended outcome.
+// Editing dates is normal adaptation, never a failure, so this stays forgiving:
+// it keeps the Target a sensible distance after the Start, and when only the
+// Start moves it slides the whole window to preserve the planned duration.
+export async function updateProjectDates(
+  id: string,
+  data: { startDate?: string; targetDate?: string },
+) {
+  const current = await prisma.project.findUnique({
+    where: { id },
+    select: { startDate: true, targetDate: true },
+  });
+  if (!current) return;
+
+  const newStart = data.startDate
+    ? fromDateInputValue(data.startDate)
+    : current.startDate;
+
+  let newTarget: Date;
+  if (data.targetDate) {
+    // An explicit Target is respected, but must stay at least a day after the
+    // Start. Compare on raw dayDiff — durationDays floors at 1 and so could
+    // never reject a too-early target.
+    const requested = fromDateInputValue(data.targetDate);
+    newTarget = dayDiff(newStart, requested) >= 1 ? requested : addDays(newStart, 1);
+  } else if (data.startDate) {
+    // Moving only the Start slides the journey, keeping its length.
+    newTarget = addDays(newStart, durationDays(current.startDate, current.targetDate));
+  } else {
+    return;
+  }
+
+  await prisma.project.update({
+    where: { id },
+    data: { startDate: newStart, targetDate: newTarget },
+  });
+  revalidatePath(`/projects/${id}`);
+  revalidatePath("/");
 }
 
 export async function updateProject(
@@ -134,17 +188,28 @@ export async function deleteProject(id: string) {
 
 export async function createInitiative(projectId: string, title: string) {
   const trimmed = title.trim() || "New initiative";
-  // Place new initiatives after existing ones, on an open lane.
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { startDate: true, targetDate: true },
+  });
+  if (!project) return;
+  const total = durationDays(project.startDate, project.targetDate);
+
+  // Place new initiatives after existing ones, on an open lane, but keep them
+  // inside the project's timeframe (they can never start before it begins or
+  // run past the Target Completion Date).
   const existing = await prisma.initiative.findMany({
     where: { projectId },
     select: { startDay: true, duration: true, lane: true },
   });
-  const startDay = existing.length
+  const duration = Math.min(14, total);
+  const rawStart = existing.length
     ? Math.max(...existing.map((i) => i.startDay + i.duration))
     : 0;
+  const startDay = Math.max(0, Math.min(rawStart, total - duration));
   const lane = existing.length % 3;
   await prisma.initiative.create({
-    data: { projectId, title: trimmed, startDay, duration: 14, lane },
+    data: { projectId, title: trimmed, startDay, duration, lane },
   });
   revalidatePath(`/projects/${projectId}`);
 }

@@ -39,6 +39,11 @@ model Project {
   id           String       @id @default(cuid())
   name         String
   whyStatement String       @default("") // the "Why" / value statement (required in UI)
+  // The project's timeframe — the journey from where it begins to the
+  // outcome the user currently intends. The Target is an intention, not a
+  // deadline; changing it is normal adaptation, never a failure.
+  startDate    DateTime     @default(now())
+  targetDate   DateTime     @default(now()) // Target Completion Date (always after startDate in practice)
   values       Value[]      @relation("ProjectValues")
   initiatives  Initiative[]
   reflections  Reflection[]
@@ -54,7 +59,10 @@ model Initiative {
   title     String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId String
-  // Timeline placement, measured in days from the project's timeline origin.
+  // Timeline placement, measured in days from the project's Start Date.
+  // The initiative's real Start Date = project.startDate + startDay days;
+  // its End Date = that + duration days. Kept relative so the whole journey
+  // reschedules cleanly when the project's Start Date moves.
   startDay  Int      @default(0)
   duration  Int      @default(14) // length in days (resizable)
   lane      Int      @default(0)  // vertical row on the timeline

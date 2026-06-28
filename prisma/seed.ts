@@ -70,6 +70,9 @@ async function main() {
       name: "Run a half marathon",
       whyStatement:
         "To prove to myself that consistency compounds — and feel strong and alive again.",
+      // A ~4.5-month journey — long enough that the timeline shows months.
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      targetDate: new Date("2026-10-15T00:00:00.000Z"),
       x: 560,
       y: 320,
       values: {

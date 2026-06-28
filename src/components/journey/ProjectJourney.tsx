@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as actions from "@/lib/actions";
 import { Button, InlineEdit } from "@/components/ui";
 import type { ProjectDetail } from "@/lib/data";
+import {
+  addDays,
+  dayDiff,
+  durationDays,
+  fromDateInputValue,
+  humanDuration,
+  toDateInputValue,
+} from "@/lib/timeline";
+import { useTodayUTC } from "@/lib/useTodayUTC";
 import { Timeline } from "./Timeline";
 import { ReflectionPanel } from "./ReflectionPanel";
 
@@ -23,6 +32,46 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
     project.initiatives.find((i) => i.id === selectedId) ??
     project.initiatives[0] ??
     null;
+
+  // The project's timeframe, in the units the timeline math speaks (whole days
+  // from the Start Date). Everything below derives from these two dates.
+  const startISO = toDateInputValue(project.startDate);
+  const targetISO = toDateInputValue(project.targetDate);
+  const totalDays = durationDays(project.startDate, project.targetDate);
+
+  // Any initiative whose end now reaches past the Target — surfaced gently so
+  // the user can adapt rather than treated as a failure.
+  const overdue = project.initiatives.filter(
+    (i) => i.startDay + i.duration > totalDays,
+  );
+
+  // "Where am I in this journey?" — client-only (null during SSR).
+  const today = useTodayUTC();
+  const todayOffset = today === null ? null : dayDiff(project.startDate, today);
+
+  // Stable identity for the timeline's bars so unrelated re-renders (typing an
+  // initiative name, a transition settling) don't reset the Timeline's local
+  // drag mirror.
+  const timelineInitiatives = useMemo(
+    () =>
+      project.initiatives.map((i) => ({
+        id: i.id,
+        title: i.title,
+        startDay: i.startDay,
+        duration: i.duration,
+        lane: i.lane,
+        progress: i.progress,
+      })),
+    [project.initiatives],
+  );
+
+  function bringInside() {
+    for (const i of overdue) {
+      const duration = Math.max(1, Math.min(i.duration, totalDays));
+      const startDay = Math.max(0, Math.min(i.startDay, totalDays - duration));
+      run(() => actions.updateInitiative(i.id, { startDay, duration }));
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-6 py-8">
@@ -82,8 +131,51 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
         </div>
       </div>
 
+      {/* Timeframe — the journey's beginning, intended outcome, and where you are now */}
+      <section className="mt-7 rounded-xl border border-line bg-paper-raised p-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end gap-5">
+            <DateField
+              label="Start date"
+              value={startISO}
+              max={targetISO}
+              onCommit={(startDate) =>
+                run(() => actions.updateProjectDates(project.id, { startDate }))
+              }
+            />
+            <span className="pb-2 text-ink-faint">→</span>
+            <DateField
+              label="Target completion"
+              value={targetISO}
+              min={startISO}
+              onCommit={(targetDate) =>
+                run(() => actions.updateProjectDates(project.id, { targetDate }))
+              }
+            />
+            <div className="pb-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+                Journey
+              </div>
+              <div className="text-sm text-ink-soft">
+                {humanDuration(totalDays)}
+              </div>
+            </div>
+          </div>
+
+          <PhaseStatus
+            offset={todayOffset}
+            totalDays={totalDays}
+            initiatives={project.initiatives}
+          />
+        </div>
+        <p className="mt-3 text-xs text-ink-faint">
+          The target is an intention, not a deadline — move it whenever life
+          changes. The timeline below adapts to fit.
+        </p>
+      </section>
+
       {/* Timeline */}
-      <section className="mt-10">
+      <section className="mt-7">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-serif text-xl font-medium text-ink">The journey</h2>
           <div className="flex items-center gap-2">
@@ -113,6 +205,23 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
           </div>
         </div>
 
+        {/* Gentle nudge when phases reach past the Target — adapt, don't fail */}
+        {overdue.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-clay/40 bg-clay-tint/50 px-4 py-3">
+            <p className="text-sm text-[#8a5238]">
+              {overdue.length === 1
+                ? "1 initiative now reaches past your target date."
+                : `${overdue.length} initiatives now reach past your target date.`}{" "}
+              <span className="text-[#a06a4f]">
+                Extend the timeframe above, or tuck them back inside.
+              </span>
+            </p>
+            <Button variant="soft" onClick={bringInside}>
+              Bring inside the timeframe
+            </Button>
+          </div>
+        )}
+
         {project.initiatives.length === 0 ? (
           <div className="rounded-xl border border-dashed border-line-strong bg-paper-raised p-10 text-center text-ink-soft">
             Add your first initiative — a meaningful phase of this journey. Then
@@ -120,14 +229,9 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
           </div>
         ) : (
           <Timeline
-            initiatives={project.initiatives.map((i) => ({
-              id: i.id,
-              title: i.title,
-              startDay: i.startDay,
-              duration: i.duration,
-              lane: i.lane,
-              progress: i.progress,
-            }))}
+            startDate={startISO}
+            totalDays={totalDays}
+            initiatives={timelineInitiatives}
             selectedId={selected?.id ?? null}
             onSelect={setSelectedId}
           />
@@ -162,6 +266,17 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
                   Delete
                 </button>
               </div>
+
+              {/* Initiative dates — drag the bar, or set them precisely here */}
+              <InitiativeDates
+                project={project}
+                selected={selected}
+                startISO={startISO}
+                targetISO={targetISO}
+                onUpdate={(data) =>
+                  run(() => actions.updateInitiative(selected.id, data))
+                }
+              />
 
               <div className="mt-4 space-y-1.5">
                 {selected.epics.map((epic) => (
@@ -240,5 +355,134 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+/** A calm where-am-I chip: counts down to the start, names the current phase,
+ *  or quietly notes when you're past the target. */
+function PhaseStatus({
+  offset,
+  totalDays,
+  initiatives,
+}: {
+  offset: number | null;
+  totalDays: number;
+  initiatives: ProjectDetail["initiatives"];
+}) {
+  if (offset === null) return <div className="h-9" aria-hidden />; // reserve space pre-mount
+
+  let text: string;
+  if (offset < 0) {
+    const d = -offset;
+    text = `Begins in ${d} day${d === 1 ? "" : "s"}`;
+  } else if (offset > totalDays) {
+    const d = offset - totalDays;
+    text = `${d} day${d === 1 ? "" : "s"} past your target`;
+  } else {
+    const current = initiatives.find(
+      (i) => offset >= i.startDay && offset < i.startDay + i.duration,
+    );
+    text = current ? `You're in “${current.title}”` : "Between phases";
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-full bg-sage-tint/70 px-3.5 py-1.5">
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "var(--sky)" }} />
+      <span className="text-sm font-medium text-sage-deep">{text}</span>
+    </div>
+  );
+}
+
+/** Precise Start/End editing for the selected initiative. Each field moves its
+ *  own endpoint and keeps the other fixed (so a long initiative can always be
+ *  repositioned), and the input bounds can never invert — even when an
+ *  initiative currently overflows the timeframe. */
+function InitiativeDates({
+  project,
+  selected,
+  startISO,
+  targetISO,
+  onUpdate,
+}: {
+  project: ProjectDetail;
+  selected: ProjectDetail["initiatives"][number];
+  startISO: string;
+  targetISO: string;
+  onUpdate: (data: { startDay?: number; duration?: number }) => void;
+}) {
+  const initStart = selected.startDay;
+  const initEnd = selected.startDay + selected.duration;
+  const startValue = toDateInputValue(addDays(project.startDate, initStart));
+  const endValue = toDateInputValue(addDays(project.startDate, initEnd));
+  // Start can move from the project start up to the day before its own end;
+  // end can move from the day after its start out to (at least) the Target.
+  const startMax = toDateInputValue(addDays(project.startDate, initEnd - 1));
+  const endMin = toDateInputValue(addDays(project.startDate, initStart + 1));
+  const endMax = endValue > targetISO ? endValue : targetISO;
+
+  return (
+    <div className="mt-3 flex flex-wrap items-end gap-4 border-b border-line pb-4">
+      <DateField
+        label="Starts"
+        value={startValue}
+        min={startISO}
+        max={startMax}
+        onCommit={(value) => {
+          const offset = dayDiff(project.startDate, fromDateInputValue(value));
+          const startDay = Math.max(0, Math.min(offset, initEnd - 1));
+          // Keep the End fixed → recompute duration.
+          onUpdate({ startDay, duration: initEnd - startDay });
+        }}
+      />
+      <span className="pb-2 text-ink-faint">→</span>
+      <DateField
+        label="Ends"
+        value={endValue}
+        min={endMin}
+        max={endMax}
+        onCommit={(value) => {
+          const endOffset = dayDiff(project.startDate, fromDateInputValue(value));
+          // Keep the Start fixed → recompute duration (permissive; may overflow
+          // the Target, which the banner then offers to tuck back in).
+          onUpdate({ duration: Math.max(1, endOffset - initStart) });
+        }}
+      />
+      <span className="pb-1.5 text-xs text-ink-faint">
+        {humanDuration(selected.duration)}
+      </span>
+    </div>
+  );
+}
+
+/** A labelled native date picker that commits on change. */
+function DateField({
+  label,
+  value,
+  min,
+  max,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  min?: string;
+  max?: string;
+  onCommit: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+        {label}
+      </span>
+      <input
+        type="date"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(e) => {
+          if (e.target.value) onCommit(e.target.value);
+        }}
+        className="mt-0.5 block rounded-lg border border-line-strong bg-paper px-2.5 py-1.5 text-sm text-ink outline-none focus:border-sage"
+      />
+    </label>
   );
 }
