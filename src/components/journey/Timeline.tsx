@@ -66,7 +66,9 @@ export function Timeline({
   // currently spills past the Target so the user can still see and drag it back.
   const maxEnd = local.reduce((m, i) => Math.max(m, i.startDay + i.duration), 0);
   const renderDays = Math.max(totalDays, maxEnd);
-  const width = renderDays * pxPerDay + 8;
+  // Trailing room so the End boundary's label (drawn to the right of its line,
+  // clear of the initiative bars) is never clipped at the timeline's edge.
+  const width = renderDays * pxPerDay + 72;
 
   const gridlines = useMemo(
     () => buildGridlines(startDate, totalDays, scale),
@@ -195,7 +197,7 @@ export function Timeline({
           x={targetX}
           label="End"
           date={formatDay(addDays(startDate, totalDays))}
-          align="right"
+          align="left"
         />
 
         {/* Today — "where am I in this journey?" */}
