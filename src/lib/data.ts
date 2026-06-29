@@ -60,18 +60,22 @@ export async function getLifeMap() {
       : Math.round(
           (areas.reduce((s, a) => s + a.satisfaction, 0) / areas.length) * 10,
         ) / 10;
+  // Every area tied at the lowest satisfaction — so when several areas are
+  // equally low, all of them surface, not just an arbitrary one.
+  const minSatisfaction =
+    areas.length === 0 ? null : Math.min(...areas.map((a) => a.satisfaction));
   const needsAttention =
-    areas.length === 0
-      ? null
-      : areas.reduce((low, a) => (a.satisfaction < low.satisfaction ? a : low));
+    minSatisfaction === null
+      ? []
+      : areas
+          .filter((a) => a.satisfaction === minSatisfaction)
+          .map((a) => ({ name: a.name, satisfaction: a.satisfaction }));
 
   const summary = {
     areaCount: areas.length,
     projectCount: projectsWithProgress.length,
     avgSatisfaction,
-    needsAttention: needsAttention
-      ? { name: needsAttention.name, satisfaction: needsAttention.satisfaction }
-      : null,
+    needsAttention,
   };
 
   return { areas: areasWithMeta, projects: projectsWithProgress, summary };

@@ -208,17 +208,20 @@ function computeSummary(
       : Math.round(
           (areas.reduce((s, a) => s + a.satisfaction, 0) / areas.length) * 10,
         ) / 10;
+  // Mirror the server's rule: surface every area tied at the lowest satisfaction.
+  const minSatisfaction =
+    areas.length === 0 ? null : Math.min(...areas.map((a) => a.satisfaction));
   const needsAttention =
-    areas.length === 0
-      ? null
-      : areas.reduce((low, a) => (a.satisfaction < low.satisfaction ? a : low));
+    minSatisfaction === null
+      ? []
+      : areas
+          .filter((a) => a.satisfaction === minSatisfaction)
+          .map((a) => ({ name: a.name, satisfaction: a.satisfaction }));
   return {
     areaCount: areas.length,
     projectCount: projects.length,
     avgSatisfaction,
-    needsAttention: needsAttention
-      ? { name: needsAttention.name, satisfaction: needsAttention.satisfaction }
-      : null,
+    needsAttention,
   };
 }
 

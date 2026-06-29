@@ -52,16 +52,20 @@ export function PortfolioSummary({ summary }: { summary: Summary }) {
             </div>
           </div>
 
-          {summary.needsAttention && (
+          {summary.needsAttention.length > 0 && (
             <div className="rounded-lg bg-clay-tint/60 px-3 py-2 text-sm">
               <div className="text-[11px] uppercase tracking-wide text-clay">
                 Needs attention
               </div>
-              <div className="text-ink">
-                {summary.needsAttention.name}{" "}
-                <span className="text-ink-faint">
-                  ({summary.needsAttention.satisfaction}/10)
-                </span>
+              <div className="space-y-0.5">
+                {summary.needsAttention.map((area, i) => (
+                  <div key={`${area.name}-${i}`} className="text-ink">
+                    {area.name}{" "}
+                    <span className="text-ink-faint">
+                      ({area.satisfaction}/10)
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
