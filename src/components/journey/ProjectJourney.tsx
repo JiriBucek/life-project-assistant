@@ -13,7 +13,6 @@ import {
   humanDuration,
   toDateInputValue,
 } from "@/lib/timeline";
-import { useTodayUTC } from "@/lib/useTodayUTC";
 import { Timeline } from "./Timeline";
 import { ReflectionPanel } from "./ReflectionPanel";
 
@@ -45,10 +44,6 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
     (i) => i.startDay + i.duration > totalDays,
   );
 
-  // "Where am I in this journey?" — client-only (null during SSR).
-  const today = useTodayUTC();
-  const todayOffset = today === null ? null : dayDiff(project.startDate, today);
-
   // Stable identity for the timeline's bars so unrelated re-renders (typing an
   // initiative name, a transition settling) don't reset the Timeline's local
   // drag mirror.
@@ -77,6 +72,9 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
     <div className="mx-auto w-full max-w-[1200px] px-6 py-8">
       {/* Hero */}
       <div className="ellie-rise">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+          Project
+        </div>
         <h1>
           <InlineEdit
             value={project.name}
@@ -161,12 +159,6 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
               </div>
             </div>
           </div>
-
-          <PhaseStatus
-            offset={todayOffset}
-            totalDays={totalDays}
-            initiatives={project.initiatives}
-          />
         </div>
         <p className="mt-3 text-xs text-ink-faint">
           The target is an intention, not a deadline — move it whenever life
@@ -354,41 +346,6 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
           ← Back to life map
         </Button>
       </div>
-    </div>
-  );
-}
-
-/** A calm where-am-I chip: counts down to the start, names the current phase,
- *  or quietly notes when you're past the target. */
-function PhaseStatus({
-  offset,
-  totalDays,
-  initiatives,
-}: {
-  offset: number | null;
-  totalDays: number;
-  initiatives: ProjectDetail["initiatives"];
-}) {
-  if (offset === null) return <div className="h-9" aria-hidden />; // reserve space pre-mount
-
-  let text: string;
-  if (offset < 0) {
-    const d = -offset;
-    text = `Begins in ${d} day${d === 1 ? "" : "s"}`;
-  } else if (offset > totalDays) {
-    const d = offset - totalDays;
-    text = `${d} day${d === 1 ? "" : "s"} past your target`;
-  } else {
-    const current = initiatives.find(
-      (i) => offset >= i.startDay && offset < i.startDay + i.duration,
-    );
-    text = current ? `You're in “${current.title}”` : "Between phases";
-  }
-
-  return (
-    <div className="flex items-center gap-2 rounded-full bg-sage-tint/70 px-3.5 py-1.5">
-      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "var(--sky)" }} />
-      <span className="text-sm font-medium text-sage-deep">{text}</span>
     </div>
   );
 }

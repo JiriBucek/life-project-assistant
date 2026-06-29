@@ -189,14 +189,13 @@ export function Timeline({
           </div>
         ))}
 
-        {/* Start & Target boundaries — the two ends of the journey */}
+        {/* Start & End boundaries — the two ends of the journey */}
         <Boundary x={0} label="Start" date={formatDay(startDate)} align="left" />
         <Boundary
           x={targetX}
-          label="Target"
+          label="End"
           date={formatDay(addDays(startDate, totalDays))}
           align="right"
-          accent
         />
 
         {/* Today — "where am I in this journey?" */}
