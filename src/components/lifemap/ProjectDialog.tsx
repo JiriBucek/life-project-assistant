@@ -121,10 +121,13 @@ export function ProjectDialog({
                               onClick={() => toggle(v.id)}
                               className={`rounded-full px-3 py-1 text-sm transition ${
                                 on
-                                  ? "bg-sage text-white"
-                                  : "bg-sage-tint/60 text-sage-deep hover:bg-sage-tint"
+                                  ? "bg-gold-deep text-white"
+                                  : "bg-gold-tint/60 text-gold-deep hover:bg-gold-tint"
                               }`}
                             >
+                              <span aria-hidden className="mr-1 text-[10px]">
+                                ✦
+                              </span>
                               {v.name}
                             </button>
                           );

@@ -1,9 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // E2E runs against an isolated dev server + SQLite test database so it never
-// touches local seed data. The webServer command swaps `.env` to point at
-// prisma/test.db and pushes the schema BEFORE `next dev` boots (so the server
-// reads the right database); global-teardown restores the original `.env`.
+// touches local seed data. Isolation is pure environment: DATABASE_URL points
+// the test server at prisma/test.db (process env wins over `.env`, which is
+// never modified), and NEXT_DIST_DIR gives it its own build dir + lockfile so
+// it can boot alongside a normal dev server on another port.
 const PORT = 3100;
 
 export default defineConfig({
@@ -20,7 +21,16 @@ export default defineConfig({
     channel: "chrome",
   },
   projects: [
-    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } },
+    {
+      name: "chrome",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: "chrome",
+        // The default 1280×720 leaves too little canvas below the welcome
+        // hero + always-open projects timeline; use a realistic laptop height.
+        viewport: { width: 1280, height: 900 },
+      },
+    },
   ],
   globalTeardown: "./e2e/global-teardown.ts",
   webServer: {
@@ -28,5 +38,9 @@ export default defineConfig({
     url: `http://localhost:${PORT}`,
     timeout: 120_000,
     reuseExistingServer: false,
+    env: {
+      DATABASE_URL: "file:./test.db",
+      NEXT_DIST_DIR: ".next-e2e",
+    },
   },
 });

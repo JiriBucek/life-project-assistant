@@ -20,8 +20,20 @@ model LifeArea {
   y            Float    @default(0)
   order        Int      @default(0)
   values       Value[]
+  // Dated diary of every satisfaction rating — powers "How it's changed".
+  satisfactionHistory SatisfactionEntry[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// One dated satisfaction rating for a life area. Written automatically each
+// time the user sets the score, so change over time can be charted.
+model SatisfactionEntry {
+  id        String   @id @default(cuid())
+  area      LifeArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  areaId    String
+  value     Int // 1–10, as rated at that moment
+  createdAt DateTime @default(now())
 }
 
 model Value {

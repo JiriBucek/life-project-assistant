@@ -14,12 +14,27 @@
   --line: #e7e2d8;
   --line-strong: #d8d2c4;
 
-  --sage: #7c9885; /* primary accent */
-  --sage-deep: #5f7a68;
-  --sage-tint: #e8efe8;
-  --clay: #c08a6a; /* warm secondary */
-  --clay-tint: #f3e7dd;
-  --sky: #8aa9c0;
+  /*
+    Brand palette (user-chosen): #10069F blue · #FFFBCE citron ·
+    #C34811 orange · #F0EEEA whitish (≈ the existing paper foundation, which
+    stays as-is). Variable names are historic; the values below map them onto
+    the brand palette: sage→blue (primary/interactive), clay→orange
+    (projects), gold→citron (values), sky→blue (life areas).
+  */
+  --sage: #10069f; /* primary accent — brand blue */
+  --sage-deep: #0b0475;
+  --sage-tint: #e7e6f6;
+  --clay: #c34811; /* attention orange — low satisfaction, "worth noticing" */
+  --clay-tint: #f7ddd0;
+  --periwinkle: #b9c7f8; /* projects — user-chosen, distinct from attention orange */
+  --periwinkle-deep: #4a5cad;
+  --periwinkle-tint: #eef1fd;
+  --gold: #8b7a2a; /* values — deep citron for glyphs & lines */
+  --gold-deep: #6f621f;
+  --gold-tint: #fffbce; /* brand citron */
+  --sky: #10069f; /* life areas — brand blue */
+  --sky-deep: #10069f;
+  --sky-tint: #e7e6f6;
 }
 
 @theme inline {
@@ -35,7 +50,15 @@
   --color-sage-tint: var(--sage-tint);
   --color-clay: var(--clay);
   --color-clay-tint: var(--clay-tint);
+  --color-periwinkle: var(--periwinkle);
+  --color-periwinkle-deep: var(--periwinkle-deep);
+  --color-periwinkle-tint: var(--periwinkle-tint);
+  --color-gold: var(--gold);
+  --color-gold-deep: var(--gold-deep);
+  --color-gold-tint: var(--gold-tint);
   --color-sky: var(--sky);
+  --color-sky-deep: var(--sky-deep);
+  --color-sky-tint: var(--sky-tint);
 
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-serif), ui-serif, Georgia, serif;
@@ -74,6 +97,103 @@ body {
 
 .ellie-rise {
   animation: ellie-rise 0.4s ease both;
+}
+
+/* Soft, slow star twinkle for the welcome constellation */
+@keyframes ellie-twinkle {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+}
+
+.ellie-twinkle {
+  animation: ellie-twinkle 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ellie-twinkle {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* An inviting button: edges glow in a slow breath, and every few seconds a
+   soft citron shine sweeps across — curious, never loud. */
+@keyframes ellie-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px var(--periwinkle),
+      0 0 6px 1px rgba(185, 199, 248, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1.5px var(--periwinkle-deep),
+      0 0 16px 4px rgba(185, 199, 248, 0.9);
+  }
+}
+
+@keyframes ellie-shine {
+  0% {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+  60%,
+  100% {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+
+.ellie-invite {
+  position: relative;
+  overflow: hidden;
+  animation: ellie-glow 3.2s ease-in-out infinite;
+}
+
+.ellie-invite::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(
+    105deg,
+    transparent,
+    rgba(255, 251, 206, 0.75),
+    transparent
+  );
+  animation: ellie-shine 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ellie-invite,
+  .ellie-invite::after {
+    animation: none;
+  }
+}
+
+/* Ellie's avatar: the sun-head turns slowly, forever */
+@keyframes ellie-head-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ellie-avatar-head {
+  animation: ellie-head-spin 12s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ellie-avatar-head {
+    animation: none;
+  }
 }
 
 /* React Flow tuning to keep the map soft */

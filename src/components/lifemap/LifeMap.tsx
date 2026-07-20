@@ -24,6 +24,10 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 import type { LifeMapArea, LifeMapProject, PortfolioSummary as Summary } from "@/lib/data";
+import { computePortfolioSummary } from "@/lib/portfolio";
+import { openJourneyGuide } from "@/components/HowItWorks";
+import { AllJourneys } from "./AllJourneys";
+import { SatisfactionStory } from "./SatisfactionStory";
 import * as actions from "@/lib/actions";
 import { Button } from "@/components/ui";
 import { LifeMapProvider, type LifeMapHandlers } from "./context";
@@ -198,32 +202,6 @@ function lifeMapReducer(
   }
 }
 
-function computeSummary(
-  areas: LifeMapArea[],
-  projects: LifeMapProject[],
-): Summary {
-  const avgSatisfaction =
-    areas.length === 0
-      ? 0
-      : Math.round(
-          (areas.reduce((s, a) => s + a.satisfaction, 0) / areas.length) * 10,
-        ) / 10;
-  // Mirror the server's rule: surface every area tied at the lowest satisfaction.
-  const minSatisfaction =
-    areas.length === 0 ? null : Math.min(...areas.map((a) => a.satisfaction));
-  const needsAttention =
-    minSatisfaction === null
-      ? []
-      : areas
-          .filter((a) => a.satisfaction === minSatisfaction)
-          .map((a) => ({ name: a.name, satisfaction: a.satisfaction }));
-  return {
-    areaCount: areas.length,
-    projectCount: projects.length,
-    avgSatisfaction,
-    needsAttention,
-  };
-}
 
 export function LifeMap(props: {
   areas: LifeMapArea[];
@@ -247,6 +225,8 @@ function LifeMapInner({
 }) {
   const [pending, startTransition] = useTransition();
   const [newAreaName, setNewAreaName] = useState("");
+  const [areaPrompt, setAreaPrompt] = useState(false);
+  const [storyOpen, setStoryOpen] = useState(false);
   const [dialog, setDialog] = useState<{ open: boolean; draft?: ProjectDraft }>({
     open: false,
   });
@@ -268,7 +248,7 @@ function LifeMapInner({
   );
   const { areas, projects } = optimistic;
   const summary = useMemo(
-    () => computeSummary(areas, projects),
+    () => computePortfolioSummary(areas, projects),
     [areas, projects],
   );
 
@@ -403,7 +383,7 @@ function LifeMapInner({
           sourceHandle: "out",
           target: areaId,
           targetHandle: valueId,
-          style: { stroke: "var(--sage)", strokeWidth: 1.5 },
+          style: { stroke: "var(--gold)", strokeWidth: 1.75 },
           animated: false,
         });
       }
@@ -508,6 +488,11 @@ function LifeMapInner({
         valueIds: draft.valueIds,
         values: resolveValues(areas, draft.valueIds),
         areaIds: [],
+        // Mirror the server defaults (84-day journey, active right now) so the
+        // summary panel doesn't mis-flag the project before revalidation.
+        startDate: new Date(),
+        targetDate: new Date(Date.now() + 84 * 86_400_000),
+        lastActivityAt: new Date(),
         progress: { total: 0, done: 0, pct: 0 },
       };
       mutate({ type: "createProject", project }, () =>
@@ -533,12 +518,14 @@ function LifeMapInner({
       y: 40 + order * 420,
       order,
       values: [],
+      satisfactionHistory: [{ value: 5, createdAt: new Date() }],
       projectCount: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
     mutate({ type: "createArea", area }, () => actions.createArea(name));
     setNewAreaName("");
+    setAreaPrompt(false);
   }
 
   const empty = areas.length === 0 && projects.length === 0;
@@ -546,28 +533,72 @@ function LifeMapInner({
   return (
     <LifeMapProvider value={handlers}>
       <div className="relative flex-1">
-        {/* Floating toolbar */}
-        <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-line bg-paper-raised/90 p-1.5 pl-3 shadow-sm backdrop-blur">
-          <input
-            value={newAreaName}
-            onChange={(e) => setNewAreaName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") addArea();
-            }}
-            placeholder="Name a life area…"
-            className="w-44 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
-          />
-          <Button
-            variant="soft"
-            disabled={!newAreaName.trim()}
-            onClick={addArea}
-          >
-            + Area
-          </Button>
-          <Button onClick={() => setDialog({ open: true })}>+ Project</Button>
-        </div>
+        {/* Top overlay band — shares the header/hero content container so the
+            toolbar and summary panel align with the welcome text's edges. */}
+        <div className="pointer-events-none absolute inset-x-0 top-4 z-10">
+          <div className="mx-auto flex w-full max-w-[1400px] items-start justify-between px-6">
+            {/* Floating toolbar — actions first, the map key beneath */}
+            <div className="pointer-events-auto">
+              <div className="flex items-center gap-2 rounded-full border border-line bg-paper-raised/90 p-1.5 pl-3.5 shadow-sm backdrop-blur">
+                <span className="text-sm text-ink-soft">Start anywhere:</span>
+                <Button
+                  variant="soft"
+                  onClick={() => setAreaPrompt((open) => !open)}
+                >
+                  + Life area
+                </Button>
+                <Button onClick={() => setDialog({ open: true })}>
+                  + Project
+                </Button>
+              </div>
+              {areaPrompt && (
+                <div className="mt-2 w-72 rounded-xl border border-line bg-paper-raised p-3 shadow-sm">
+                  <div className="mb-1.5 text-xs text-ink-faint">
+                    A part of life you care about — Health, Family, Craft…
+                  </div>
+                  <input
+                    autoFocus
+                    value={newAreaName}
+                    onChange={(e) => setNewAreaName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addArea();
+                      if (e.key === "Escape") {
+                        setAreaPrompt(false);
+                        setNewAreaName("");
+                      }
+                    }}
+                    placeholder="Name a life area…"
+                    className="w-full rounded-lg border border-line-strong bg-transparent px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-sage focus:outline-none"
+                  />
+                </div>
+              )}
+              {/* Map key — teaches the three shapes at a glance */}
+              <div className="mt-2 inline-flex items-center gap-3 rounded-full border border-line bg-paper-raised/80 px-3 py-1 text-[11px] text-ink-soft shadow-sm backdrop-blur">
+                <span className="flex items-center gap-1.5">
+                  <span aria-hidden className="h-2 w-2 rounded-full bg-sky" />
+                  Life area
+                </span>
+                <span className="flex items-center gap-1">
+                  <span aria-hidden className="text-gold">
+                    ✦
+                  </span>
+                  Value
+                </span>
+                <span className="flex items-center gap-1">
+                  <span aria-hidden className="text-periwinkle-deep">
+                    ▸
+                  </span>
+                  Project
+                </span>
+              </div>
+            </div>
 
-        <PortfolioSummary summary={summary} />
+            <PortfolioSummary
+              summary={summary}
+              onShowStory={() => setStoryOpen(true)}
+            />
+          </div>
+        </div>
 
         {/* Hint */}
         <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-ink/5 px-4 py-1.5 text-xs text-ink-soft">
@@ -575,7 +606,13 @@ function LifeMapInner({
           disconnect
         </div>
 
-        {empty && <EmptyState onAddArea={() => {}} />}
+        {empty && (
+          <EmptyState
+            onAddArea={() => setAreaPrompt(true)}
+            onAddProject={() => setDialog({ open: true })}
+            onShowGuide={openJourneyGuide}
+          />
+        )}
 
         <ReactFlow
           nodes={nodes}
@@ -614,26 +651,77 @@ function LifeMapInner({
           onClose={() => setDialog({ open: false })}
           onSubmit={submitDialog}
         />
+
+        <SatisfactionStory
+          open={storyOpen}
+          areas={areas}
+          onClose={() => setStoryOpen(false)}
+        />
       </div>
+
+      {/* All journeys — one shared timeline along the bottom of the page */}
+      <AllJourneys projects={projects} />
     </LifeMapProvider>
   );
 }
 
-function EmptyState({ onAddArea }: { onAddArea: () => void }) {
-  void onAddArea;
+function EmptyState({
+  onAddArea,
+  onAddProject,
+  onShowGuide,
+}: {
+  onAddArea: () => void;
+  onAddProject: () => void;
+  onShowGuide: () => void;
+}) {
   return (
     <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center">
-      <div className="max-w-md text-center">
-        <h2 className="font-serif text-2xl font-medium text-ink">
-          This is your life map.
-        </h2>
-        <p className="mt-2 text-ink-soft">
-          Begin with a life area — like Health, Relationships, or Craft. Rate how
-          satisfied you feel there, name the values that matter, then connect the
-          projects that serve them.
+      <div className="max-w-xl px-6 text-center">
+        <p className="font-serif text-xl text-ink">
+          Where would you like to begin today?
         </p>
-        <p className="mt-4 text-sm text-ink-faint">
-          Start by naming a life area in the top-left.
+        <button
+          onClick={onShowGuide}
+          className="pointer-events-auto mt-2 text-sm font-medium text-sage-deep transition hover:text-ink"
+        >
+          <span aria-hidden className="text-clay">
+            ✦
+          </span>{" "}
+          New here? See how the journey works
+        </button>
+
+        <div className="pointer-events-auto mt-6 grid gap-3 text-left sm:grid-cols-2">
+          <button
+            onClick={onAddArea}
+            className="group rounded-xl border border-line bg-paper-raised p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky hover:shadow-md"
+          >
+            <div className="mb-2 h-1.5 w-8 rounded-full bg-sky" />
+            <div className="font-serif text-lg font-medium text-ink">
+              Map a life area
+            </div>
+            <p className="mt-1 text-sm text-ink-soft">
+              Health, Relationships, Craft… note how satisfied you feel and
+              name the values that matter there.
+            </p>
+          </button>
+          <button
+            onClick={onAddProject}
+            className="group rounded-xl border border-line bg-paper-raised p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-periwinkle hover:shadow-md"
+          >
+            <div className="mb-2 h-1.5 w-8 rounded-full bg-periwinkle" />
+            <div className="font-serif text-lg font-medium text-ink">
+              Start a project
+            </div>
+            <p className="mt-1 text-sm text-ink-soft">
+              Something you want to make happen. Connect it to your life map
+              whenever you’re ready — or let it stand on its own.
+            </p>
+          </button>
+        </div>
+
+        <p className="mt-5 text-sm text-ink-faint">
+          Everything can be added, linked, and rearranged later — this map
+          grows with you.
         </p>
       </div>
     </div>

@@ -32,10 +32,16 @@ function areaCard(page: Page, name: string): Locator {
 }
 
 async function createArea(page: Page, name: string) {
+  await page.getByRole("button", { name: "+ Life area" }).click();
   const input = page.getByPlaceholder(/Name a life area/);
   await input.fill(name);
   await input.press("Enter");
-  await expect(areaCard(page, name)).toBeVisible();
+  const card = areaCard(page, name);
+  await expect(card).toBeVisible();
+  // Wait for the server id to replace the optimistic tmp- id: the node
+  // remounts at that moment, which would reset any in-progress typing in the
+  // card (the historical source of flakes in the value-creation steps).
+  await expect(card).not.toHaveAttribute("data-id", /^tmp-/);
 }
 
 async function addValue(page: Page, areaName: string, value: string) {
@@ -51,8 +57,11 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
 }) => {
   await page.goto("/");
 
-  // Empty-state guidance is shown to a first-time user.
-  await expect(page.getByText("This is your life map.")).toBeVisible();
+  // The welcome greeting and both starting paths greet a first-time user.
+  await expect(page.getByText("Hi, I’m glad you’re here!")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Map a life area" }),
+  ).toBeVisible();
 
   // --- 1. Create 3 Life Areas ---
   await createArea(page, "Health");
@@ -67,8 +76,8 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
     .click();
   await expect(areaCard(page, "Health").getByText("8/10")).toBeVisible();
 
-  // Portfolio summary reflects the lowest area as "needs attention".
-  await expect(page.getByText("Needs attention")).toBeVisible();
+  // Portfolio summary reflects the lowest area under "Worth noticing".
+  await expect(page.getByText("Worth noticing")).toBeVisible();
   await expect(
     page.locator("text=Relationships").last(),
   ).toBeVisible();
@@ -263,12 +272,98 @@ test("required fields are enforced — a project needs a name and a Why", async 
   await expect(save).toBeEnabled();
 });
 
-test("the + Area button is disabled until a name is entered", async ({ page }) => {
+test("no mandatory order — both creation paths are immediately available", async ({
+  page,
+}) => {
   await page.goto("/");
-  const addArea = page.getByRole("button", { name: "+ Area" });
-  await expect(addArea).toBeDisabled();
-  await page.getByPlaceholder(/Name a life area/).fill("Career");
-  await expect(addArea).toBeEnabled();
+
+  // The welcome section presents both paths as equal starting points.
+  await expect(page.getByText(/no right place to begin/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "+ Life area" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "+ Project" })).toBeEnabled();
+
+  // A project can be created FIRST, with zero life areas in existence.
+  await page.getByRole("button", { name: "Start a project" }).click();
+  const dialog = page.getByTestId("project-dialog");
+  await dialog.getByPlaceholder("e.g. Run a half marathon").fill("Plan a trip");
+  await dialog.getByPlaceholder(/benefit you/i).fill("Time away together.");
+  await dialog.getByRole("button", { name: "Create project" }).click();
+  await expect(
+    page.locator(".react-flow__node").filter({ hasText: "Plan a trip" }),
+  ).toBeVisible();
+
+  // A life area can still be added afterwards — order never mattered.
+  await createArea(page, "Adventure");
+});
+
+test("the all-projects timeline is always visible once a project exists", async ({
+  page,
+}) => {
+  await page.goto("/");
+  // With no projects there is no timeline band at all.
+  await expect(page.getByText("All projects")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "+ Project" }).click();
+  const dialog = page.getByTestId("project-dialog");
+  await dialog.getByPlaceholder("e.g. Run a half marathon").fill("Sail the coast");
+  await dialog.getByPlaceholder(/benefit you/i).fill("Salt air and quiet.");
+  await dialog.getByRole("button", { name: "Create project" }).click();
+
+  // The band is expanded by default: load count, month + year labels, the bar.
+  await expect(page.getByText("All projects")).toBeVisible();
+  await expect(page.getByText(/1 running today/)).toBeVisible();
+  await expect(page.getByText(/’2\d/).first()).toBeVisible(); // e.g. "Jul ’26"
+  const bar = page.getByTitle(/Sail the coast/);
+  await expect(bar).toBeVisible();
+  await expect(bar).toContainText("0%");
+
+  // It can be tucked away and brought back.
+  const toggle = page.getByRole("button", { name: /All projects/ });
+  await toggle.click();
+  await expect(bar).toBeHidden();
+  await toggle.click();
+  await expect(bar).toBeVisible();
+
+  // Clicking a bar steps into that project's journey page.
+  await bar.click();
+  await expect(page).toHaveURL(/\/projects\/.+/);
+});
+
+test("the satisfaction story charts rating history per life area", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await createArea(page, "Wellness");
+  await areaCard(page, "Wellness").getByLabel("Set satisfaction to 8").click();
+  await expect(areaCard(page, "Wellness").getByText("8/10")).toBeVisible();
+
+  await page.getByRole("button", { name: /see how it’s changed/ }).click();
+  const story = page.getByTestId("satisfaction-story");
+  await expect(story).toBeVisible();
+  await expect(story).toContainText("How it’s changed");
+  await expect(story).toContainText("Wellness"); // legend + direct label
+  await expect(story).toContainText("TODAY");
+  await page.getByLabel("Close chart").click();
+  await expect(story).toBeHidden();
+});
+
+test("the journey guide explains the tool's concept", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "How this works" }).click();
+  const guide = page.getByTestId("journey-guide");
+  await expect(guide).toBeVisible();
+  await expect(guide).toContainText("a wish appears");
+  await expect(guide).toContainText("a project begins");
+  await expect(guide).toContainText("the messy middle");
+  await expect(guide).toContainText("reflection");
+  await expect(guide).toContainText("life satisfaction grows");
+  await expect(guide).toContainText("the project ends");
+  await expect(guide).toContainText("a new wish appears");
+  await expect(guide).toContainText("your life areas");
+  await expect(guide).toContainText("never at the same height");
+  await expect(guide).toContainText("your values");
+  await page.getByLabel("Close guide").click();
+  await expect(guide).toBeHidden();
 });
 
 test("a value can be connected by dragging onto the whole project card", async ({
@@ -301,8 +396,10 @@ test("a value can be connected by dragging onto the whole project card", async (
     handleBox.y + handleBox.height / 2,
   );
   await page.mouse.down();
-  // Move in steps so React Flow registers an active connection drag.
-  await page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + 30, {
+  // Move in steps so React Flow registers an active connection drag. Release
+  // over the card's left edge — on short viewports the floating summary panel
+  // can overlap the card's right half, and a drop must land on visible card.
+  await page.mouse.move(cardBox.x + 30, cardBox.y + 30, {
     steps: 12,
   });
   await page.mouse.up();

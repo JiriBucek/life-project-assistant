@@ -37,11 +37,11 @@ export function SatisfactionScale({
   );
 }
 
-/** Green when thriving, clay when an area needs attention. */
+/** Brand blue when thriving, orange when an area needs attention. */
 export function satisfactionColor(v: number): string {
   if (v >= 7) return "var(--sage)";
   if (v >= 4) return "var(--clay)";
-  return "#c2705f";
+  return "#93330a";
 }
 
 /** Click-to-edit text that commits on blur / Enter. */

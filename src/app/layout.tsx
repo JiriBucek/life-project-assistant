@@ -16,7 +16,7 @@ const serif = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Ellie Life Project Assistant — your life, intentionally planned",
+  title: "LUMA — Life Unfolds through Meaningful Action",
   description:
     "Turn meaningful aspirations into achievable projects. Begin with why.",
 };

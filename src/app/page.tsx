@@ -1,4 +1,5 @@
 import { AppHeader } from "@/components/AppHeader";
+import { WelcomeHero } from "@/components/WelcomeHero";
 import { LifeMap } from "@/components/lifemap/LifeMap";
 import { getLifeMap } from "@/lib/data";
 
@@ -10,6 +11,7 @@ export default async function HomePage() {
   return (
     <div className="flex h-screen flex-col">
       <AppHeader />
+      <WelcomeHero />
       <LifeMap areas={areas} projects={projects} summary={summary} />
     </div>
   );

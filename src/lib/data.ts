@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { computePortfolioSummary } from "@/lib/portfolio";
 
 export type ProgressStat = { total: number; done: number; pct: number };
 
@@ -10,13 +11,26 @@ export async function getLifeMap() {
   const [areas, projects] = await Promise.all([
     prisma.lifeArea.findMany({
       orderBy: { order: "asc" },
-      include: { values: { orderBy: { createdAt: "asc" } } },
+      include: {
+        values: { orderBy: { createdAt: "asc" } },
+        satisfactionHistory: {
+          select: { value: true, createdAt: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     }),
     prisma.project.findMany({
       orderBy: { createdAt: "asc" },
       include: {
         values: { select: { id: true, name: true, areaId: true } },
-        initiatives: { include: { epics: { select: { isComplete: true } } } },
+        initiatives: {
+          include: { epics: { select: { isComplete: true, updatedAt: true } } },
+        },
+        reflections: {
+          select: { createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
     }),
   ]);
@@ -28,6 +42,16 @@ export async function getLifeMap() {
     const areaIds = Array.from(
       new Set(p.values.map((v) => v.areaId).filter(Boolean)),
     ) as string[];
+    // Most recent touch anywhere in the project's tree — powers the
+    // "no recent activity" nudge in the summary panel.
+    const lastActivityAt = new Date(
+      Math.max(
+        p.updatedAt.getTime(),
+        ...p.initiatives.map((i) => i.updatedAt.getTime()),
+        ...epics.map((e) => e.updatedAt.getTime()),
+        ...p.reflections.map((r) => r.createdAt.getTime()),
+      ),
+    );
     return {
       id: p.id,
       name: p.name,
@@ -37,6 +61,9 @@ export async function getLifeMap() {
       valueIds: p.values.map((v) => v.id),
       values: p.values,
       areaIds,
+      startDate: p.startDate,
+      targetDate: p.targetDate,
+      lastActivityAt,
       progress: pct(done, epics.length),
     };
   });
@@ -53,30 +80,8 @@ export async function getLifeMap() {
     projectCount: projectCountByArea.get(a.id) ?? 0,
   }));
 
-  // Bird's-eye portfolio summary.
-  const avgSatisfaction =
-    areas.length === 0
-      ? 0
-      : Math.round(
-          (areas.reduce((s, a) => s + a.satisfaction, 0) / areas.length) * 10,
-        ) / 10;
-  // Every area tied at the lowest satisfaction — so when several areas are
-  // equally low, all of them surface, not just an arbitrary one.
-  const minSatisfaction =
-    areas.length === 0 ? null : Math.min(...areas.map((a) => a.satisfaction));
-  const needsAttention =
-    minSatisfaction === null
-      ? []
-      : areas
-          .filter((a) => a.satisfaction === minSatisfaction)
-          .map((a) => ({ name: a.name, satisfaction: a.satisfaction }));
-
-  const summary = {
-    areaCount: areas.length,
-    projectCount: projectsWithProgress.length,
-    avgSatisfaction,
-    needsAttention,
-  };
+  // Bird's-eye portfolio summary (shared math with the client recompute).
+  const summary = computePortfolioSummary(areasWithMeta, projectsWithProgress);
 
   return { areas: areasWithMeta, projects: projectsWithProgress, summary };
 }

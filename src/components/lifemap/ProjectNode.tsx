@@ -13,25 +13,31 @@ export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
 
   return (
     <div
-      className={`ellie-rise group/proj w-80 rounded-xl border bg-paper-raised shadow-[0_1px_3px_rgba(47,44,40,0.06)] transition-all ${
+      className={`ellie-rise group/proj relative w-80 rounded-lg border bg-paper-raised shadow-[0_2px_6px_rgba(47,44,40,0.09)] transition-all ${
         h.connecting
-          ? "border-sage ring-2 ring-sage/40"
-          : "border-clay/30"
+          ? "border-gold ring-2 ring-gold/40"
+          : "border-periwinkle"
       }`}
     >
+      {/* Periwinkle spine — the project silhouette: crisp card, strong left edge */}
+      <div
+        aria-hidden
+        className="absolute left-0 top-0 h-full w-1.5 rounded-l-lg bg-periwinkle"
+      />
+
       {/* Source handle: drag from here onto a value to connect */}
       <Handle
         type="source"
         position={Position.Left}
         id="out"
-        className="!h-3.5 !w-3.5 !border-2 !border-paper-raised !bg-clay"
+        className="!h-3.5 !w-3.5 !border-2 !border-paper-raised !bg-periwinkle-deep"
         style={{ left: -7 }}
       />
 
-      <div className="p-4">
+      <div className="p-4 pl-5">
         <div className="flex items-start justify-between gap-2">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-clay">
-            Project
+          <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-periwinkle-deep">
+            <span aria-hidden>▸</span> Project
           </div>
           <div className="flex items-center gap-2 opacity-0 transition group-hover/proj:opacity-100">
             <button
@@ -70,7 +76,7 @@ export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-line">
             <div
-              className="h-full rounded-full bg-sage transition-all"
+              className="h-full rounded-full bg-periwinkle-deep transition-all"
               style={{ width: `${data.progress.pct}%` }}
             />
           </div>
@@ -78,9 +84,16 @@ export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
 
         <div className="mt-3 flex items-center justify-between">
           <span className="text-xs text-ink-faint">
-            {data.valueIds.length === 0
-              ? "Not yet connected to a value"
-              : `${data.valueIds.length} value${data.valueIds.length > 1 ? "s" : ""} connected`}
+            {data.valueIds.length === 0 ? (
+              "Not yet connected to a value"
+            ) : (
+              <>
+                <span aria-hidden className="text-gold">
+                  ✦{" "}
+                </span>
+                {`${data.valueIds.length} value${data.valueIds.length > 1 ? "s" : ""} connected`}
+              </>
+            )}
           </span>
           <button
             onClick={() => router.push(`/projects/${data.id}`)}

@@ -29,6 +29,8 @@ export async function createArea(name: string) {
       order: count,
       x: 80,
       y: 40 + count * 420,
+      // The initial rating opens the area's satisfaction diary.
+      satisfactionHistory: { create: { value: 5 } },
     },
   });
   revalidatePath("/");
@@ -46,6 +48,13 @@ export async function updateArea(
   }
   if (Object.keys(patch).length === 0) return;
   await prisma.lifeArea.update({ where: { id }, data: patch });
+  // Every rating becomes a dated diary entry — the raw material of the
+  // "How it's changed" chart (multiple same-day ratings collapse there).
+  if (patch.satisfaction !== undefined) {
+    await prisma.satisfactionEntry.create({
+      data: { areaId: id, value: patch.satisfaction },
+    });
+  }
   revalidatePath("/");
 }
 

@@ -10,10 +10,10 @@ export function AppHeader({
       <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-6">
         <Link href="/" className="flex items-baseline gap-2">
           <span className="font-serif text-2xl font-semibold tracking-tight text-ink">
-            Ellie
+            LUMA
           </span>
           <span className="hidden font-serif text-xl tracking-tight text-ink-soft sm:inline">
-            Life Project Assistant
+            Life Unfolds through Meaningful Action
           </span>
         </Link>
 
