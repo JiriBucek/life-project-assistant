@@ -1,39 +1,35 @@
 import Link from "next/link";
+import { NavTabs, MobileNav } from "@/components/NavTabs";
+import { GuideButtons } from "@/components/HowItWorks";
 
-export function AppHeader({
-  crumb,
-}: {
-  crumb?: { label: string; href?: string }[];
-}) {
+/**
+ * The one bar every screen shares: LUMA home link, the two navigation tabs
+ * (desktop), and on the right Ellie's welcome plus the how-it-works guide —
+ * two separate doors. On phones the tabs move into a fixed bottom bar
+ * (rendered here too, so every page gets both for free); the tagline now
+ * lives inside the guide.
+ */
+export function AppHeader() {
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-paper/85 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-6">
-        <Link href="/" className="flex items-baseline gap-2">
-          <span className="font-serif text-2xl font-semibold tracking-tight text-ink">
-            LUMA
-          </span>
-          <span className="hidden font-serif text-xl tracking-tight text-ink-soft sm:inline">
-            Life Unfolds through Meaningful Action
-          </span>
-        </Link>
+    <>
+      <header className="sticky top-0 z-20 border-b border-line bg-paper/85 backdrop-blur-sm">
+        <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-5 px-4 md:h-16 md:px-6">
+          <Link href="/" className="shrink-0">
+            <span className="font-serif text-2xl font-semibold tracking-tight text-ink">
+              LUMA
+            </span>
+          </Link>
 
-        {crumb && crumb.length > 0 && (
-          <nav className="flex items-center gap-2 text-sm text-ink-soft">
-            {crumb.map((c, i) => (
-              <span key={i} className="flex items-center gap-2">
-                <span className="text-ink-faint">/</span>
-                {c.href ? (
-                  <Link href={c.href} className="hover:text-ink">
-                    {c.label}
-                  </Link>
-                ) : (
-                  <span className="text-ink">{c.label}</span>
-                )}
-              </span>
-            ))}
-          </nav>
-        )}
-      </div>
-    </header>
+          <div className="hidden md:block">
+            <NavTabs />
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <GuideButtons />
+          </div>
+        </div>
+      </header>
+      <MobileNav />
+    </>
   );
 }

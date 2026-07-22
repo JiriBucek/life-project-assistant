@@ -107,19 +107,20 @@ export function SatisfactionStory({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    // Full-screen on phones, a centered card from md up.
+    <div className="fixed inset-0 z-50 flex items-center justify-center md:p-4">
       <div
         className="absolute inset-0 bg-ink/20 backdrop-blur-[2px]"
         onClick={onClose}
       />
       <div
         data-testid="satisfaction-story"
-        className="ellie-rise relative w-full max-w-3xl rounded-2xl border border-line bg-paper-raised p-6 shadow-xl"
+        className="ellie-rise relative flex h-full w-full flex-col overflow-y-auto bg-paper-raised p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-xl md:h-auto md:max-h-[92vh] md:max-w-3xl md:rounded-2xl md:border md:border-line md:p-6 md:pb-6"
       >
         <button
           aria-label="Close chart"
           onClick={onClose}
-          className="absolute right-4 top-4 text-ink-faint transition hover:text-ink"
+          className="absolute right-4 top-4 p-1 text-ink-faint transition hover:text-ink"
         >
           ✕
         </button>

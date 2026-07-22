@@ -57,8 +57,10 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
 }) => {
   await page.goto("/");
 
-  // The welcome greeting and both starting paths greet a first-time user.
-  await expect(page.getByText("Hi, I’m glad you’re here!")).toBeVisible();
+  // The empty map greets a first-time user with both starting paths.
+  await expect(
+    page.getByText("Where would you like to begin today?"),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Map a life area" }),
   ).toBeVisible();
@@ -117,9 +119,12 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
   await expect(projectNode).toBeVisible();
   await expect(projectNode.getByText(/2 values connected/)).toBeVisible();
 
-  // --- 5. Open the Project Journey ---
+  // --- 5. Open the Project Journey (entered from the map → back leads there) ---
   await projectNode.getByRole("button", { name: /Open journey/ }).click();
   await expect(page).toHaveURL(/\/projects\/.+/);
+  await expect(
+    page.getByRole("link", { name: "← Back to life map" }).first(),
+  ).toBeVisible();
   await expect(
     page.getByText("Ship my first album", { exact: true }).first(),
   ).toBeVisible();
@@ -296,37 +301,79 @@ test("no mandatory order — both creation paths are immediately available", asy
   await createArea(page, "Adventure");
 });
 
-test("the all-projects timeline is always visible once a project exists", async ({
+test("the Projects page shows every journey on one shared timeline", async ({
   page,
 }) => {
-  await page.goto("/");
-  // With no projects there is no timeline band at all.
-  await expect(page.getByText("All projects")).toHaveCount(0);
+  // With no projects, the page explains where projects are born.
+  await page.goto("/projects");
+  await expect(page.getByText("No projects on the road yet.")).toBeVisible();
+  await page.getByRole("link", { name: "← Go to your Life Map" }).click();
+  await expect(page).toHaveURL(/\/$/);
 
+  // Create a project on the map…
   await page.getByRole("button", { name: "+ Project" }).click();
   const dialog = page.getByTestId("project-dialog");
   await dialog.getByPlaceholder("e.g. Run a half marathon").fill("Sail the coast");
   await dialog.getByPlaceholder(/benefit you/i).fill("Salt air and quiet.");
   await dialog.getByRole("button", { name: "Create project" }).click();
+  await expect(
+    page.locator(".react-flow__node").filter({ hasText: "Sail the coast" }),
+  ).toBeVisible();
 
-  // The band is expanded by default: load count, month + year labels, the bar.
-  await expect(page.getByText("All projects")).toBeVisible();
+  // …then step over via the header tab: load count, month + year labels, the bar.
+  await page.getByRole("navigation").getByRole("link", { name: "Projects" }).click();
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(
+    page.getByRole("heading", { name: "Projects" }),
+  ).toBeVisible();
   await expect(page.getByText(/1 running today/)).toBeVisible();
   await expect(page.getByText(/’2\d/).first()).toBeVisible(); // e.g. "Jul ’26"
   const bar = page.getByTitle(/Sail the coast/);
   await expect(bar).toBeVisible();
   await expect(bar).toContainText("0%");
 
-  // It can be tucked away and brought back.
-  const toggle = page.getByRole("button", { name: /All projects/ });
-  await toggle.click();
-  await expect(bar).toBeHidden();
-  await toggle.click();
-  await expect(bar).toBeVisible();
-
-  // Clicking a bar steps into that project's journey page.
+  // Clicking a bar steps into that journey, and back returns to Projects.
   await bar.click();
-  await expect(page).toHaveURL(/\/projects\/.+/);
+  await expect(page).toHaveURL(/\/projects\/[^?]+\?from=projects/);
+  await page.getByRole("link", { name: "← Back to projects" }).first().click();
+  await expect(page).toHaveURL(/\/projects$/);
+});
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test("bottom tabs navigate and the guide opens full-screen", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    // The empty map still greets a newcomer on a small screen.
+    await expect(
+      page.getByText("Where would you like to begin today?"),
+    ).toBeVisible();
+
+    // The bottom bar is the phone's navigation: hop to Projects and back.
+    await page.getByRole("link", { name: "Projects", exact: true }).click();
+    await expect(page).toHaveURL(/\/projects$/);
+    await expect(page.getByText("No projects on the road yet.")).toBeVisible();
+    await page.getByRole("link", { name: "Life Map", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/);
+
+    // Ellie's welcome and the concept guide are two separate doors.
+    await page.getByRole("button", { name: "Welcome from Ellie" }).click();
+    const welcome = page.getByTestId("welcome-note");
+    await expect(welcome).toBeVisible();
+    await expect(welcome).toContainText("glad you’re here");
+    await expect(welcome).toContainText("no right place to begin");
+    await page.getByLabel("Close welcome").click();
+    await expect(welcome).toBeHidden();
+
+    await page.getByRole("button", { name: "How this works" }).click();
+    const guide = page.getByTestId("journey-guide");
+    await expect(guide).toBeVisible();
+    await expect(guide).toContainText("a wish appears");
+    await page.getByLabel("Close guide").click();
+    await expect(guide).toBeHidden();
+  });
 });
 
 test("the satisfaction story charts rating history per life area", async ({
@@ -364,6 +411,21 @@ test("the journey guide explains the tool's concept", async ({ page }) => {
   await expect(guide).toContainText("your values");
   await page.getByLabel("Close guide").click();
   await expect(guide).toBeHidden();
+});
+
+test("Ellie's welcome is its own door, separate from the guide", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Welcome from Ellie" }).click();
+  const welcome = page.getByTestId("welcome-note");
+  await expect(welcome).toBeVisible();
+  await expect(welcome).toContainText("Hi, I’m glad you’re here!");
+  await expect(welcome).toContainText("no right place to begin");
+  // The concept diagram is not mixed in — it lives behind its own button.
+  await expect(welcome).not.toContainText("a wish appears");
+  await page.getByLabel("Close welcome").click();
+  await expect(welcome).toBeHidden();
 });
 
 test("a value can be connected by dragging onto the whole project card", async ({

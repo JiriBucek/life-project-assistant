@@ -33,7 +33,7 @@ export function AreaNode({ data }: NodeProps<AreaNodeData>) {
           </div>
           <button
             onClick={() => h.deleteArea(data.id)}
-            className="text-ink-faint opacity-0 transition hover:text-[#b15a4a] group-hover/area:opacity-100"
+            className="text-ink-faint opacity-0 transition hover:text-[#b15a4a] group-hover/area:opacity-100 pointer-coarse:opacity-100"
             title="Delete area"
           >
             ✕
@@ -87,17 +87,19 @@ export function AreaNode({ data }: NodeProps<AreaNodeData>) {
                 />
                 <button
                   onClick={() => h.deleteValue(v.id)}
-                  className="text-gold-deep/50 opacity-0 transition hover:text-[#b15a4a] group-hover/val:opacity-100"
+                  className="text-gold-deep/50 opacity-0 transition hover:text-[#b15a4a] group-hover/val:opacity-100 pointer-coarse:opacity-100"
                   title="Delete value"
                 >
                   ✕
                 </button>
-                {/* Connection point for projects */}
+                {/* Connection point for projects — drag it with a mouse, or
+                    tap it on touch to pick projects from a list. Grows a bit
+                    on touch screens so fingers can find it. */}
                 <Handle
                   type="target"
                   position={Position.Right}
                   id={v.id}
-                  className="!h-3 !w-3 !border-2 !border-paper-raised !bg-gold"
+                  className="!h-3 !w-3 !border-2 !border-paper-raised !bg-gold pointer-coarse:h-5! pointer-coarse:w-5!"
                   style={{ right: -6 }}
                 />
               </div>

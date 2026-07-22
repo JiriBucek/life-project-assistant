@@ -51,24 +51,28 @@ export function ProjectDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    // Full-screen on phones (small centered cards are cramped once the
+    // keyboard rises); a centered card from md up.
+    <div className="fixed inset-0 z-50 flex items-center justify-center md:p-4">
       <div
         className="absolute inset-0 bg-ink/20 backdrop-blur-[2px]"
         onClick={onClose}
       />
       <div
         data-testid="project-dialog"
-        className="ellie-rise relative w-full max-w-lg rounded-2xl border border-line bg-paper-raised p-6 shadow-xl"
+        className="ellie-rise relative flex h-full w-full flex-col bg-paper-raised shadow-xl md:h-auto md:max-h-[92vh] md:max-w-lg md:rounded-2xl md:border md:border-line"
       >
-        <h2 className="font-serif text-xl font-medium text-ink">
-          {initial?.id ? "Edit project" : "Begin a project"}
-        </h2>
-        <p className="mt-1 text-sm text-ink-soft">
-          Start with the meaning. What are you reaching for, and why does it
-          matter?
-        </p>
+        <div className="p-5 pb-0 md:p-6 md:pb-0">
+          <h2 className="font-serif text-xl font-medium text-ink">
+            {initial?.id ? "Edit project" : "Begin a project"}
+          </h2>
+          <p className="mt-1 text-sm text-ink-soft">
+            Start with the meaning. What are you reaching for, and why does it
+            matter?
+          </p>
+        </div>
 
-        <div className="mt-5 space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 pt-4 md:p-6 md:pt-5">
           <label className="block">
             <span className="text-sm font-medium text-ink">Project name</span>
             <input
@@ -140,7 +144,7 @@ export function ProjectDialog({
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="flex justify-end gap-2 border-t border-line p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:border-0 md:p-6 md:pb-6 md:pt-0">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>

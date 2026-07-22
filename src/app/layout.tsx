@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Nunito_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
 
@@ -19,6 +19,14 @@ export const metadata: Metadata = {
   title: "LUMA — Life Unfolds through Meaningful Action",
   description:
     "Turn meaningful aspirations into achievable projects. Begin with why.",
+};
+
+// viewport-fit=cover lets the phone UI (bottom tab bar, sheets) extend into
+// the safe area, which the components then pad with env(safe-area-inset-*).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

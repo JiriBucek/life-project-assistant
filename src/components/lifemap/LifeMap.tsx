@@ -26,8 +26,8 @@ import "reactflow/dist/style.css";
 import type { LifeMapArea, LifeMapProject, PortfolioSummary as Summary } from "@/lib/data";
 import { computePortfolioSummary } from "@/lib/portfolio";
 import { openJourneyGuide } from "@/components/HowItWorks";
-import { AllJourneys } from "./AllJourneys";
 import { SatisfactionStory } from "./SatisfactionStory";
+import { ValueConnectSheet } from "./ValueConnectSheet";
 import * as actions from "@/lib/actions";
 import { Button } from "@/components/ui";
 import { LifeMapProvider, type LifeMapHandlers } from "./context";
@@ -230,9 +230,14 @@ function LifeMapInner({
   const [dialog, setDialog] = useState<{ open: boolean; draft?: ProjectDraft }>({
     open: false,
   });
-  // The value a connection drag started from (used to drop onto a whole project).
-  const connectFrom = useRef<{ valueId: string } | null>(null);
+  // The value a connection drag started from (used to drop onto a whole
+  // project) plus where it started, so a mere tap can be told apart from a drag.
+  const connectFrom = useRef<{ valueId: string; x: number; y: number } | null>(
+    null,
+  );
   const [connectingFromValue, setConnectingFromValue] = useState(false);
+  // A tapped value opens the connect sheet — the touch path to linking.
+  const [sheetValueId, setSheetValueId] = useState<string | null>(null);
 
   // Optimistic mirror of the server data — see the reducer above. The base must
   // be a stable reference: useOptimistic re-runs the reducer whenever the base
@@ -433,9 +438,15 @@ function LifeMapInner({
   // Track which value a connection drag begins from, so the user can release
   // anywhere over a project card (not just on its dot) to connect.
   const onConnectStart = useCallback(
-    (_: unknown, params: OnConnectStartParams) => {
+    (event: unknown, params: OnConnectStartParams) => {
       if (params.handleId && params.handleId !== "out") {
-        connectFrom.current = { valueId: params.handleId };
+        const e = event as { touches?: TouchList; clientX?: number; clientY?: number };
+        const pt = e.touches?.[0] ?? e;
+        connectFrom.current = {
+          valueId: params.handleId,
+          x: pt.clientX ?? 0,
+          y: pt.clientY ?? 0,
+        };
         setConnectingFromValue(true);
       }
     },
@@ -450,6 +461,14 @@ function LifeMapInner({
       if (!from) return;
 
       const point = "changedTouches" in event ? event.changedTouches[0] : event;
+
+      // A tap (barely any movement) on a value's dot opens the connect sheet
+      // instead — dragging a wire is precise mouse work, so touch gets a list.
+      if (Math.hypot(point.clientX - from.x, point.clientY - from.y) < 8) {
+        setSheetValueId(from.valueId);
+        return;
+      }
+
       const el = document.elementFromPoint(point.clientX, point.clientY);
       const nodeEl = el?.closest(".react-flow__node");
       const dropId = nodeEl?.getAttribute("data-id");
@@ -539,8 +558,10 @@ function LifeMapInner({
           <div className="mx-auto flex w-full max-w-[1400px] items-start justify-between px-6">
             {/* Floating toolbar — actions first, the map key beneath */}
             <div className="pointer-events-auto">
-              <div className="flex items-center gap-2 rounded-full border border-line bg-paper-raised/90 p-1.5 pl-3.5 shadow-sm backdrop-blur">
-                <span className="text-sm text-ink-soft">Start anywhere:</span>
+              <div className="flex items-center gap-2 rounded-full border border-line bg-paper-raised/90 p-1.5 shadow-sm backdrop-blur sm:pl-3.5">
+                <span className="hidden text-sm text-ink-soft sm:inline">
+                  Start anywhere:
+                </span>
                 <Button
                   variant="soft"
                   onClick={() => setAreaPrompt((open) => !open)}
@@ -600,10 +621,15 @@ function LifeMapInner({
           </div>
         </div>
 
-        {/* Hint */}
-        <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-ink/5 px-4 py-1.5 text-xs text-ink-soft">
-          Drag from a value’s dot onto a project to connect them · click a line to
-          disconnect
+        {/* Hint — mouse users drag the wire; fingers tap the dot instead */}
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink/5 px-4 py-1.5 text-xs text-ink-soft">
+          <span className="pointer-coarse:hidden">
+            Drag from a value’s dot onto a project to connect them · click a
+            line to disconnect
+          </span>
+          <span className="hidden pointer-coarse:inline">
+            Tap a value’s ✦ dot to link it to a project
+          </span>
         </div>
 
         {empty && (
@@ -657,10 +683,30 @@ function LifeMapInner({
           areas={areas}
           onClose={() => setStoryOpen(false)}
         />
-      </div>
 
-      {/* All journeys — one shared timeline along the bottom of the page */}
-      <AllJourneys projects={projects} />
+        {sheetValueId &&
+          (() => {
+            const value = areas
+              .flatMap((a) => a.values)
+              .find((v) => v.id === sheetValueId);
+            if (!value) return null;
+            return (
+              <ValueConnectSheet
+                valueName={value.name}
+                valueId={value.id}
+                projects={projects}
+                onToggle={(projectId) => {
+                  const p = projects.find((pr) => pr.id === projectId);
+                  if (!p) return;
+                  if (p.valueIds.includes(value.id))
+                    handlers.disconnectValue(projectId, value.id);
+                  else linkValueToProject(projectId, value.id);
+                }}
+                onClose={() => setSheetValueId(null)}
+              />
+            );
+          })()}
+      </div>
     </LifeMapProvider>
   );
 }
@@ -679,6 +725,10 @@ function EmptyState({
       <div className="max-w-xl px-6 text-center">
         <p className="font-serif text-xl text-ink">
           Where would you like to begin today?
+        </p>
+        <p className="mt-1.5 text-sm text-ink-soft">
+          There is no right place to begin — only the one that feels right to
+          you.
         </p>
         <button
           onClick={onShowGuide}

@@ -177,6 +177,11 @@ body {
   .ellie-invite::after {
     animation: none;
   }
+  /* With the sweep stopped, the shine gradient would sit parked over the
+     button label — remove it entirely when motion is reduced. */
+  .ellie-invite::after {
+    display: none;
+  }
 }
 
 /* Ellie's avatar: the sun-head turns slowly, forever */

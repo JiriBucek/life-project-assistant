@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import * as actions from "@/lib/actions";
 import { Button, InlineEdit } from "@/components/ui";
 import type { ProjectDetail } from "@/lib/data";
@@ -16,8 +16,16 @@ import {
 import { Timeline } from "./Timeline";
 import { ReflectionPanel } from "./ReflectionPanel";
 
-export function ProjectJourney({ project }: { project: ProjectDetail }) {
-  const router = useRouter();
+export function ProjectJourney({
+  project,
+  backHref,
+  backLabel,
+}: {
+  project: ProjectDetail;
+  // Where "back" leads — the page decides based on how the journey was entered.
+  backHref: string;
+  backLabel: string;
+}) {
   const [, startTransition] = useTransition();
   const run = (fn: () => unknown) => startTransition(() => void fn());
 
@@ -69,7 +77,7 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-6 py-8">
+    <div className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-6 md:py-8">
       {/* Hero */}
       <div className="ellie-rise">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
@@ -342,9 +350,12 @@ export function ProjectJourney({ project }: { project: ProjectDetail }) {
       </div>
 
       <div className="mt-10">
-        <Button variant="ghost" onClick={() => router.push("/")}>
-          ← Back to life map
-        </Button>
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium text-ink-soft transition-colors hover:bg-line/60 hover:text-ink"
+        >
+          ← {backLabel}
+        </Link>
       </div>
     </div>
   );

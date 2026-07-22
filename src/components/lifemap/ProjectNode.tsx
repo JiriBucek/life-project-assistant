@@ -30,7 +30,7 @@ export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
         type="source"
         position={Position.Left}
         id="out"
-        className="!h-3.5 !w-3.5 !border-2 !border-paper-raised !bg-periwinkle-deep"
+        className="!h-3.5 !w-3.5 !border-2 !border-paper-raised !bg-periwinkle-deep pointer-coarse:h-5! pointer-coarse:w-5!"
         style={{ left: -7 }}
       />
 
@@ -39,7 +39,8 @@ export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
           <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-periwinkle-deep">
             <span aria-hidden>▸</span> Project
           </div>
-          <div className="flex items-center gap-2 opacity-0 transition group-hover/proj:opacity-100">
+          {/* Hover-revealed on mouse; always visible on touch (no hover there) */}
+          <div className="flex items-center gap-2 opacity-0 transition group-hover/proj:opacity-100 pointer-coarse:opacity-100">
             <button
               onClick={() => h.editProject(data.id)}
               className="text-ink-faint hover:text-ink"
@@ -58,7 +59,7 @@ export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
         </div>
 
         <button
-          onClick={() => router.push(`/projects/${data.id}`)}
+          onClick={() => router.push(`/projects/${data.id}?from=map`)}
           className="mt-0.5 block text-left font-serif text-lg font-medium text-ink hover:text-sage-deep"
         >
           {data.name}
@@ -96,7 +97,7 @@ export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
             )}
           </span>
           <button
-            onClick={() => router.push(`/projects/${data.id}`)}
+            onClick={() => router.push(`/projects/${data.id}?from=map`)}
             className="text-xs font-medium text-sage-deep hover:underline"
           >
             Open journey →
