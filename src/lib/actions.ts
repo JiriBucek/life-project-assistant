@@ -2,6 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { requireUser } from "@/lib/auth";
+import { ifOwned, owned } from "@/lib/scope";
 import {
   addDays,
   dayDiff,
@@ -9,6 +11,10 @@ import {
   fromDateInputValue,
   todayUTC,
 } from "@/lib/timeline";
+
+// Every action below is a public HTTP endpoint, so each one starts by
+// establishing who is calling and then proves the row it touches belongs to
+// them — see src/lib/scope.ts for how that proof is expressed.
 
 // A fresh project defaults to a calm 12-week journey starting today — enough
 // to feel real, easy to adjust on the timeline.
@@ -19,13 +25,16 @@ const DEFAULT_PROJECT_DAYS = 84;
 // ---------------------------------------------------------------------------
 
 export async function createArea(name: string) {
+  const user = await requireUser();
   const trimmed = name.trim();
   if (!trimmed) return;
-  const count = await prisma.lifeArea.count();
+  // Position and order are relative to this user's own map, not everyone's.
+  const count = await prisma.lifeArea.count({ where: { userId: user.id } });
   await prisma.lifeArea.create({
     data: {
       name: trimmed,
       satisfaction: 5,
+      userId: user.id,
       order: count,
       x: 80,
       y: 40 + count * 420,
@@ -40,6 +49,7 @@ export async function updateArea(
   id: string,
   data: { name?: string; satisfaction?: number },
 ) {
+  const user = await requireUser();
   const patch: { name?: string; satisfaction?: number } = {};
   const name = data.name?.trim();
   if (name) patch.name = name; // never clear a name to empty
@@ -47,9 +57,13 @@ export async function updateArea(
     patch.satisfaction = Math.min(10, Math.max(1, Math.round(data.satisfaction)));
   }
   if (Object.keys(patch).length === 0) return;
-  await prisma.lifeArea.update({ where: { id }, data: patch });
+  const area = await ifOwned(
+    prisma.lifeArea.update({ where: owned.area(id, user.id), data: patch }),
+  );
+  if (!area) return;
   // Every rating becomes a dated diary entry — the raw material of the
   // "How it's changed" chart (multiple same-day ratings collapse there).
+  // Safe to write unscoped: the update above already proved ownership.
   if (patch.satisfaction !== undefined) {
     await prisma.satisfactionEntry.create({
       data: { areaId: id, value: patch.satisfaction },
@@ -59,11 +73,15 @@ export async function updateArea(
 }
 
 export async function moveArea(id: string, x: number, y: number) {
-  await prisma.lifeArea.update({ where: { id }, data: { x, y } });
+  const user = await requireUser();
+  await ifOwned(
+    prisma.lifeArea.update({ where: owned.area(id, user.id), data: { x, y } }),
+  );
 }
 
 export async function deleteArea(id: string) {
-  await prisma.lifeArea.delete({ where: { id } });
+  const user = await requireUser();
+  await ifOwned(prisma.lifeArea.delete({ where: owned.area(id, user.id) }));
   revalidatePath("/");
 }
 
@@ -72,21 +90,35 @@ export async function deleteArea(id: string) {
 // ---------------------------------------------------------------------------
 
 export async function createValue(areaId: string, name: string) {
+  const user = await requireUser();
   const trimmed = name.trim();
   if (!trimmed) return;
-  await prisma.value.create({ data: { name: trimmed, areaId } });
+  // `connect` carries the ownership filter, so a value can only ever be hung
+  // off one of the caller's own life areas.
+  await ifOwned(
+    prisma.value.create({
+      data: { name: trimmed, area: { connect: owned.area(areaId, user.id) } },
+    }),
+  );
   revalidatePath("/");
 }
 
 export async function updateValue(id: string, name: string) {
+  const user = await requireUser();
   const trimmed = name.trim();
   if (!trimmed) return;
-  await prisma.value.update({ where: { id }, data: { name: trimmed } });
+  await ifOwned(
+    prisma.value.update({
+      where: owned.value(id, user.id),
+      data: { name: trimmed },
+    }),
+  );
   revalidatePath("/");
 }
 
 export async function deleteValue(id: string) {
-  await prisma.value.delete({ where: { id } });
+  const user = await requireUser();
+  await ifOwned(prisma.value.delete({ where: owned.value(id, user.id) }));
   revalidatePath("/");
 }
 
@@ -94,27 +126,46 @@ export async function deleteValue(id: string) {
 // Projects
 // ---------------------------------------------------------------------------
 
+/**
+ * Reduce a list of value ids to the ones this user actually owns.
+ *
+ * A project's values are supplied by the client, so without this a crafted
+ * request could link someone else's value to your project — which would then
+ * render that value's name (and its life area) on your map. Unknown ids are
+ * dropped silently, exactly as a deleted value would be.
+ */
+async function ownValueIds(valueIds: string[], userId: string) {
+  if (valueIds.length === 0) return [];
+  const values = await prisma.value.findMany({
+    where: { id: { in: valueIds }, area: { userId } },
+    select: { id: true },
+  });
+  return values.map((v) => ({ id: v.id }));
+}
+
 export async function createProject(input: {
   name: string;
   whyStatement: string;
   valueIds: string[];
 }) {
+  const user = await requireUser();
   const name = input.name.trim();
   const whyStatement = input.whyStatement.trim();
   if (!name || !whyStatement) {
     throw new Error("A project needs a name and a Why.");
   }
-  const count = await prisma.project.count();
+  const count = await prisma.project.count({ where: { userId: user.id } });
   const startDate = todayUTC();
   const project = await prisma.project.create({
     data: {
       name,
       whyStatement,
+      userId: user.id,
       startDate,
       targetDate: addDays(startDate, DEFAULT_PROJECT_DAYS),
       x: 540,
       y: 120 + count * 200,
-      values: { connect: input.valueIds.map((id) => ({ id })) },
+      values: { connect: await ownValueIds(input.valueIds, user.id) },
     },
   });
   revalidatePath("/");
@@ -129,8 +180,9 @@ export async function updateProjectDates(
   id: string,
   data: { startDate?: string; targetDate?: string },
 ) {
-  const current = await prisma.project.findUnique({
-    where: { id },
+  const user = await requireUser();
+  const current = await prisma.project.findFirst({
+    where: owned.project(id, user.id),
     select: { startDate: true, targetDate: true },
   });
   if (!current) return;
@@ -153,10 +205,12 @@ export async function updateProjectDates(
     return;
   }
 
-  await prisma.project.update({
-    where: { id },
-    data: { startDate: newStart, targetDate: newTarget },
-  });
+  await ifOwned(
+    prisma.project.update({
+      where: owned.project(id, user.id),
+      data: { startDate: newStart, targetDate: newTarget },
+    }),
+  );
   revalidatePath(`/projects/${id}`);
   revalidatePath("/");
 }
@@ -165,29 +219,36 @@ export async function updateProject(
   id: string,
   data: { name?: string; whyStatement?: string; valueIds?: string[] },
 ) {
+  const user = await requireUser();
   const name = data.name?.trim();
   const whyStatement = data.whyStatement?.trim();
-  await prisma.project.update({
-    where: { id },
-    data: {
-      // A project must always keep a name and a Why — ignore blank updates.
-      ...(name ? { name } : {}),
-      ...(whyStatement ? { whyStatement } : {}),
-      ...(data.valueIds
-        ? { values: { set: data.valueIds.map((vid) => ({ id: vid })) } }
-        : {}),
-    },
-  });
+  await ifOwned(
+    prisma.project.update({
+      where: owned.project(id, user.id),
+      data: {
+        // A project must always keep a name and a Why — ignore blank updates.
+        ...(name ? { name } : {}),
+        ...(whyStatement ? { whyStatement } : {}),
+        ...(data.valueIds
+          ? { values: { set: await ownValueIds(data.valueIds, user.id) } }
+          : {}),
+      },
+    }),
+  );
   revalidatePath("/");
   revalidatePath(`/projects/${id}`);
 }
 
 export async function moveProject(id: string, x: number, y: number) {
-  await prisma.project.update({ where: { id }, data: { x, y } });
+  const user = await requireUser();
+  await ifOwned(
+    prisma.project.update({ where: owned.project(id, user.id), data: { x, y } }),
+  );
 }
 
 export async function deleteProject(id: string) {
-  await prisma.project.delete({ where: { id } });
+  const user = await requireUser();
+  await ifOwned(prisma.project.delete({ where: owned.project(id, user.id) }));
   revalidatePath("/");
 }
 
@@ -196,9 +257,11 @@ export async function deleteProject(id: string) {
 // ---------------------------------------------------------------------------
 
 export async function createInitiative(projectId: string, title: string) {
+  const user = await requireUser();
   const trimmed = title.trim() || "New initiative";
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  // Doubles as the ownership check: someone else's project reads as no project.
+  const project = await prisma.project.findFirst({
+    where: owned.project(projectId, user.id),
     select: { startDate: true, targetDate: true },
   });
   if (!project) return;
@@ -227,6 +290,7 @@ export async function updateInitiative(
   id: string,
   data: { title?: string; startDay?: number; duration?: number; lane?: number },
 ) {
+  const user = await requireUser();
   const clean = {
     ...data,
     ...(data.startDay !== undefined
@@ -237,13 +301,21 @@ export async function updateInitiative(
       : {}),
     ...(data.title !== undefined ? { title: data.title.trim() } : {}),
   };
-  const updated = await prisma.initiative.update({ where: { id }, data: clean });
-  revalidatePath(`/projects/${updated.projectId}`);
+  const updated = await ifOwned(
+    prisma.initiative.update({
+      where: owned.initiative(id, user.id),
+      data: clean,
+    }),
+  );
+  if (updated) revalidatePath(`/projects/${updated.projectId}`);
 }
 
 export async function deleteInitiative(id: string) {
-  const removed = await prisma.initiative.delete({ where: { id } });
-  revalidatePath(`/projects/${removed.projectId}`);
+  const user = await requireUser();
+  const removed = await ifOwned(
+    prisma.initiative.delete({ where: owned.initiative(id, user.id) }),
+  );
+  if (removed) revalidatePath(`/projects/${removed.projectId}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +323,7 @@ export async function deleteInitiative(id: string) {
 // ---------------------------------------------------------------------------
 
 export async function createEpic(initiativeId: string, title: string) {
+  const user = await requireUser();
   const trimmed = title.trim();
   if (!trimmed) return;
   // Sit after the current last epic. Based on the highest order rather than a
@@ -260,43 +333,55 @@ export async function createEpic(initiativeId: string, title: string) {
     where: { initiativeId },
     _max: { order: true },
   });
-  const epic = await prisma.epic.create({
-    data: {
-      initiativeId,
-      title: trimmed,
-      order: last._max.order === null ? 0 : last._max.order + 1,
-    },
-    include: { initiative: { select: { projectId: true } } },
-  });
-  revalidatePath(`/projects/${epic.initiative.projectId}`);
+  // The connect proves the initiative is on one of the caller's projects.
+  const epic = await ifOwned(
+    prisma.epic.create({
+      data: {
+        initiative: { connect: owned.initiative(initiativeId, user.id) },
+        title: trimmed,
+        order: last._max.order === null ? 0 : last._max.order + 1,
+      },
+      include: { initiative: { select: { projectId: true } } },
+    }),
+  );
+  if (epic) revalidatePath(`/projects/${epic.initiative.projectId}`);
 }
 
 export async function toggleEpic(id: string, isComplete: boolean) {
-  const epic = await prisma.epic.update({
-    where: { id },
-    data: { isComplete },
-    include: { initiative: { select: { projectId: true } } },
-  });
-  revalidatePath(`/projects/${epic.initiative.projectId}`);
+  const user = await requireUser();
+  const epic = await ifOwned(
+    prisma.epic.update({
+      where: owned.epic(id, user.id),
+      data: { isComplete },
+      include: { initiative: { select: { projectId: true } } },
+    }),
+  );
+  if (epic) revalidatePath(`/projects/${epic.initiative.projectId}`);
 }
 
 export async function updateEpic(id: string, title: string) {
+  const user = await requireUser();
   const trimmed = title.trim();
   if (!trimmed) return;
-  const epic = await prisma.epic.update({
-    where: { id },
-    data: { title: trimmed },
-    include: { initiative: { select: { projectId: true } } },
-  });
-  revalidatePath(`/projects/${epic.initiative.projectId}`);
+  const epic = await ifOwned(
+    prisma.epic.update({
+      where: owned.epic(id, user.id),
+      data: { title: trimmed },
+      include: { initiative: { select: { projectId: true } } },
+    }),
+  );
+  if (epic) revalidatePath(`/projects/${epic.initiative.projectId}`);
 }
 
 export async function deleteEpic(id: string) {
-  const epic = await prisma.epic.delete({
-    where: { id },
-    include: { initiative: { select: { projectId: true } } },
-  });
-  revalidatePath(`/projects/${epic.initiative.projectId}`);
+  const user = await requireUser();
+  const epic = await ifOwned(
+    prisma.epic.delete({
+      where: owned.epic(id, user.id),
+      include: { initiative: { select: { projectId: true } } },
+    }),
+  );
+  if (epic) revalidatePath(`/projects/${epic.initiative.projectId}`);
 }
 
 /**
@@ -307,8 +392,9 @@ export async function deleteEpic(id: string) {
  * can never make an epic disappear from the list.
  */
 export async function reorderEpics(initiativeId: string, orderedIds: string[]) {
-  const initiative = await prisma.initiative.findUnique({
-    where: { id: initiativeId },
+  const user = await requireUser();
+  const initiative = await prisma.initiative.findFirst({
+    where: owned.initiative(initiativeId, user.id),
     select: { projectId: true },
   });
   if (!initiative) return;
@@ -346,17 +432,28 @@ export async function createReflection(
   projectId: string,
   input: { whatChanged: string; why: string; nextStep: string },
 ) {
+  const user = await requireUser();
   const whatChanged = input.whatChanged.trim();
   const why = input.why.trim();
   const nextStep = input.nextStep.trim();
   if (!whatChanged && !why && !nextStep) return;
-  await prisma.reflection.create({
-    data: { projectId, whatChanged, why, nextStep },
-  });
+  await ifOwned(
+    prisma.reflection.create({
+      data: {
+        project: { connect: owned.project(projectId, user.id) },
+        whatChanged,
+        why,
+        nextStep,
+      },
+    }),
+  );
   revalidatePath(`/projects/${projectId}`);
 }
 
 export async function deleteReflection(id: string) {
-  const removed = await prisma.reflection.delete({ where: { id } });
-  revalidatePath(`/projects/${removed.projectId}`);
+  const user = await requireUser();
+  const removed = await ifOwned(
+    prisma.reflection.delete({ where: owned.reflection(id, user.id) }),
+  );
+  if (removed) revalidatePath(`/projects/${removed.projectId}`);
 }

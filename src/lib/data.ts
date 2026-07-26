@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
 import { computePortfolioSummary } from "@/lib/portfolio";
 import { addDays } from "@/lib/timeline";
 
@@ -8,9 +9,20 @@ function pct(done: number, total: number): ProgressStat {
   return { total, done, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
 }
 
+/**
+ * The signed-in user's life map. The scoping happens here rather than in the
+ * pages, so there is no unscoped way to ask for this data — a caller can't
+ * forget to pass a user id, because it never takes one.
+ */
 export async function getLifeMap() {
+  const user = await requireUser();
+
   const [areas, projects] = await Promise.all([
     prisma.lifeArea.findMany({
+      where: { userId: user.id },
+      // Having filtered by it, the owner id itself is of no use to the
+      // browser — leave it in the database.
+      omit: { userId: true },
       orderBy: { order: "asc" },
       include: {
         values: { orderBy: { createdAt: "asc" } },
@@ -21,6 +33,7 @@ export async function getLifeMap() {
       },
     }),
     prisma.project.findMany({
+      where: { userId: user.id },
       orderBy: { createdAt: "asc" },
       include: {
         values: { select: { id: true, name: true, areaId: true } },
@@ -109,9 +122,17 @@ export type LifeMapArea = LifeMapData["areas"][number];
 export type LifeMapProject = LifeMapData["projects"][number];
 export type LifeMapInitiative = LifeMapProject["initiatives"][number];
 
+/**
+ * One project's journey — or null if it isn't the signed-in user's. Someone
+ * else's project id is indistinguishable from a deleted one, so the page shows
+ * its normal "not found" rather than confirming the project exists.
+ */
 export async function getProject(id: string) {
-  const project = await prisma.project.findUnique({
-    where: { id },
+  const user = await requireUser();
+
+  const project = await prisma.project.findFirst({
+    where: { id, userId: user.id },
+    omit: { userId: true },
     include: {
       values: {
         select: { id: true, name: true, area: { select: { name: true } } },

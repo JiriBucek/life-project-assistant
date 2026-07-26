@@ -5,7 +5,8 @@ import { defineConfig, devices } from "@playwright/test";
 // the test server at prisma/test.db (process env wins over `.env`, which is
 // never modified), and NEXT_DIST_DIR gives it its own build dir + lockfile so
 // it can boot alongside a normal dev server on another port.
-const PORT = 3100;
+// Exported so the auth helper can attach session cookies to the right origin.
+export const PORT = 3100;
 
 export default defineConfig({
   testDir: "./e2e",

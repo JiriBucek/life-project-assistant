@@ -1,10 +1,20 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword, normalizeEmail } from "../src/lib/password";
 
 const prisma = new PrismaClient();
 
+/**
+ * The sample life map belongs to a demo account, since every life area and
+ * project now needs an owner. Override with SEED_EMAIL / SEED_PASSWORD to seed
+ * a different account — useful for giving a new invitee something to look at.
+ */
+const SEED_EMAIL = normalizeEmail(process.env.SEED_EMAIL ?? "demo@luma.local");
+const SEED_PASSWORD = process.env.SEED_PASSWORD ?? "demo-password";
+
 async function main() {
   // In production builds we only want to seed a brand-new database, never
-  // overwrite real data on redeploys. Locally, `npm run db:seed` resets fully.
+  // overwrite real data on redeploys. Locally, `npm run db:seed` resets the
+  // demo account only — other people's maps are never touched.
   if (process.env.SEED_ONLY_IF_EMPTY) {
     const existing = await prisma.lifeArea.count();
     if (existing > 0) {
@@ -13,19 +23,28 @@ async function main() {
     }
   }
 
-  // Clean slate so re-seeding is idempotent.
-  await prisma.reflection.deleteMany();
-  await prisma.epic.deleteMany();
-  await prisma.initiative.deleteMany();
-  await prisma.project.deleteMany();
-  await prisma.value.deleteMany();
-  await prisma.lifeArea.deleteMany();
+  const user = await prisma.user.upsert({
+    where: { email: SEED_EMAIL },
+    update: {},
+    create: {
+      email: SEED_EMAIL,
+      name: "Demo",
+      passwordHash: await hashPassword(SEED_PASSWORD),
+    },
+  });
+
+  // Clean slate so re-seeding is idempotent — scoped to the demo account.
+  // Deleting its areas and projects cascades to values, initiatives, epics
+  // and reflections, so those need no separate pass.
+  await prisma.project.deleteMany({ where: { userId: user.id } });
+  await prisma.lifeArea.deleteMany({ where: { userId: user.id } });
 
   // --- Life Areas with Values ---
   const health = await prisma.lifeArea.create({
     data: {
       name: "Health & Energy",
       satisfaction: 6,
+      userId: user.id,
       x: 80,
       y: 40,
       order: 0,
@@ -40,6 +59,7 @@ async function main() {
     data: {
       name: "Personal Growth",
       satisfaction: 7,
+      userId: user.id,
       x: 80,
       y: 460,
       order: 1,
@@ -54,6 +74,7 @@ async function main() {
     data: {
       name: "Relationships",
       satisfaction: 5,
+      userId: user.id,
       x: 80,
       y: 880,
       order: 2,
@@ -70,6 +91,7 @@ async function main() {
       name: "Run a half marathon",
       whyStatement:
         "To prove to myself that consistency compounds — and feel strong and alive again.",
+      userId: user.id,
       // A ~4.5-month journey — long enough that the timeline shows months.
       startDate: new Date("2026-06-01T00:00:00.000Z"),
       targetDate: new Date("2026-10-15T00:00:00.000Z"),
@@ -140,7 +162,8 @@ async function main() {
   void base;
 
   console.log(
-    "Seeded Ellie Life Project Assistant with sample Life Map and project journey.",
+    `Seeded a sample Life Map and project journey for ${SEED_EMAIL}.\n` +
+      `Sign in with ${SEED_EMAIL} / ${SEED_PASSWORD}`,
   );
 }
 

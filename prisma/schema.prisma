@@ -1,6 +1,10 @@
 // Ellie — Life Project Assistant
 // Hierarchy: LifeArea -> Value -> Project -> Initiative -> Epic, plus Reflection.
-// Single-user PoC: no auth, no User model (everything is the implicit one user).
+//
+// Multi-user: LifeArea and Project are the only roots, so they carry the owner.
+// Everything below them (Value, Initiative, Epic, Reflection, SatisfactionEntry)
+// inherits ownership through its parent and is reached only via that parent —
+// see src/lib/scope.ts, which puts the ownership test in the query itself.
 
 generator client {
   provider = "prisma-client-js"
@@ -11,19 +15,56 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// A person with their own life map. Created by hand for now
+// (`npm run user:add`); passwordHash and googleId are both optional so a
+// future Google sign-in can create — or claim — an account without a password.
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique // always stored lower-cased (see normalizeEmail)
+  name         String     @default("")
+  passwordHash String? // null for a user who only ever signs in with Google
+  googleId     String?    @unique // reserved for Google sign-in
+  sessions     Session[]
+  areas        LifeArea[]
+  projects     Project[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// A signed-in browser. Only the SHA-256 of the cookie token is stored, so a
+// leaked database still can't be used to impersonate anyone.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 model LifeArea {
-  id           String   @id @default(cuid())
-  name         String
-  satisfaction Int      @default(5) // 1–10
+  id                  String              @id @default(cuid())
+  name                String
+  satisfaction        Int                 @default(5) // 1–10
+  // The owner. Optional at the database level only so the existing
+  // single-user data could gain the column without being dropped; the app
+  // always sets it, and `npm run db:backfill` claims any legacy rows. Once
+  // production is confirmed backfilled this can become required.
+  owner               User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId              String?
   // Position on the Life Map canvas (React Flow coords)
-  x            Float    @default(0)
-  y            Float    @default(0)
-  order        Int      @default(0)
-  values       Value[]
+  x                   Float               @default(0)
+  y                   Float               @default(0)
+  order               Int                 @default(0)
+  values              Value[]
   // Dated diary of every satisfaction rating — powers "How it's changed".
   satisfactionHistory SatisfactionEntry[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([userId])
 }
 
 // One dated satisfaction rating for a life area. Written automatically each
@@ -37,20 +78,23 @@ model SatisfactionEntry {
 }
 
 model Value {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  area      LifeArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  area      LifeArea  @relation(fields: [areaId], references: [id], onDelete: Cascade)
   areaId    String
   // A Value can power many Projects; a Project can serve many Values.
   projects  Project[] @relation("ProjectValues")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Project {
   id           String       @id @default(cuid())
   name         String
   whyStatement String       @default("") // the "Why" / value statement (required in UI)
+  // The owner — see the note on LifeArea.userId.
+  owner        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String?
   // The project's timeframe — the journey from where it begins to the
   // outcome the user currently intends. The Target is an intention, not a
   // deadline; changing it is normal adaptation, never a failure.
@@ -64,6 +108,8 @@ model Project {
   y            Float        @default(0)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+
+  @@index([userId])
 }
 
 model Initiative {
@@ -77,7 +123,7 @@ model Initiative {
   // reschedules cleanly when the project's Start Date moves.
   startDay  Int      @default(0)
   duration  Int      @default(14) // length in days (resizable)
-  lane      Int      @default(0)  // vertical row on the timeline
+  lane      Int      @default(0) // vertical row on the timeline
   epics     Epic[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

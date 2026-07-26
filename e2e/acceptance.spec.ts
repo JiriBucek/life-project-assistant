@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
-import { PrismaClient } from "@prisma/client";
+import { prisma, resetDatabase, signInAs } from "./auth";
 
 /**
  * Mirrors the spec's Final Acceptance Test, driven through the real UI:
@@ -8,19 +8,11 @@ import { PrismaClient } from "@prisma/client";
  *   → mark progress → add a Reflection. No tutorial, all from an empty state.
  */
 
-// Talk to the same test database the app uses (relative path → prisma/test.db).
-const prisma = new PrismaClient({
-  datasources: { db: { url: "file:./test.db" } },
-});
-
-// Each test starts from a clean, empty database (a "completely new user").
-test.beforeEach(async () => {
-  await prisma.reflection.deleteMany();
-  await prisma.epic.deleteMany();
-  await prisma.initiative.deleteMany();
-  await prisma.project.deleteMany();
-  await prisma.value.deleteMany();
-  await prisma.lifeArea.deleteMany();
+// Each test starts from a clean database as a newly created account — a
+// "completely new user" in both senses, now that the app has accounts.
+test.beforeEach(async ({ page }) => {
+  await resetDatabase();
+  await signInAs(page);
 });
 
 test.afterAll(async () => {

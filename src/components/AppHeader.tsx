@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { NavTabs, MobileNav } from "@/components/NavTabs";
 import { GuideButtons } from "@/components/HowItWorks";
+import { UserMenu } from "@/components/UserMenu";
 
 /**
  * The one bar every screen shares: LUMA home link, the two navigation tabs
  * (desktop), and on the right Ellie's welcome plus the how-it-works guide —
- * two separate doors. On phones the tabs move into a fixed bottom bar
- * (rendered here too, so every page gets both for free); the tagline now
- * lives inside the guide.
+ * two separate doors — followed by who you are and the way out. On phones the
+ * tabs move into a fixed bottom bar (rendered here too, so every page gets both
+ * for free); the tagline now lives inside the guide.
  */
 export function AppHeader() {
   return (
@@ -26,6 +27,8 @@ export function AppHeader() {
 
           <div className="ml-auto flex items-center gap-2">
             <GuideButtons />
+            <span aria-hidden className="h-5 w-px bg-line" />
+            <UserMenu />
           </div>
         </div>
       </header>
