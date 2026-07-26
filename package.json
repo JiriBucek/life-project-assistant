@@ -13,8 +13,9 @@
     "db:studio": "prisma studio",
     "user:add": "tsx scripts/user-add.ts",
     "user:provision": "tsx scripts/provision-users.ts",
+    "db:showcase": "tsx scripts/showcase.ts",
     "test:e2e": "playwright test",
-    "vercel-build": "node scripts/use-postgres.mjs && prisma generate && prisma db push --skip-generate --accept-data-loss && tsx scripts/provision-users.ts && tsx scripts/backfill-owner.ts && SEED_ONLY_IF_EMPTY=1 tsx prisma/seed.ts && next build",
+    "vercel-build": "node scripts/use-postgres.mjs && prisma generate && prisma db push --skip-generate --accept-data-loss && tsx scripts/provision-users.ts && tsx scripts/backfill-owner.ts && tsx scripts/showcase.ts && SEED_ONLY_IF_EMPTY=1 tsx prisma/seed.ts && next build",
     "postinstall": "prisma generate"
   },
   "prisma": {

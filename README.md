@@ -51,6 +51,7 @@ Useful scripts:
 | `npm run db:backfill` | Give pre-auth data an owner (see *Accounts*) |
 | `npm run user:add` | Create a user, or reset an existing one's password |
 | `npm run user:provision` | Create the accounts listed in `INVITE_USERS` |
+| `npm run db:showcase` | Fill `SHOWCASE_EMAIL`'s account with the example map |
 | `npm run db:studio` | Browse the data in Prisma Studio |
 | `npm run test:e2e` | Run the Playwright end-to-end suite |
 
@@ -69,6 +70,21 @@ Two ways to make one:
   This is **create-only**: accounts that already exist are left completely alone,
   so a deploy can never silently change how someone signs in (use `user:add` for
   that). New accounts start with an empty life map.
+
+### A showcase account
+
+For demos, set `SHOWCASE_EMAIL` to an existing account and the build fills it
+with the worked example in [`prisma/sample-map.ts`](prisma/sample-map.ts) — five
+life areas, five journeys mid-flight, a couple of reflections, and several months
+of satisfaction history so every screen has something real to show. Dates are
+relative to today, so it never looks abandoned.
+
+It only fills an account whose map is **empty**, so whatever you do during a demo
+survives the next deploy. To deliberately reset it, run it once with
+`SHOWCASE_RESET=1`.
+
+The same data backs `npm run db:seed` locally, so there's only one example to
+maintain.
 
 **How sign-in works.** Passwords are hashed with Node's built-in `scrypt`
 (`src/lib/password.ts`). Signing in creates a row in `Session` and puts a random
@@ -137,11 +153,13 @@ session directly (`e2e/auth.ts`) rather than driving the form each time.
 ```
 prisma/
   schema.prisma          data model (User, Session, LifeArea→Value→Project→Initiative→Epic, Reflection)
-  seed.ts                sample data for the demo account
+  sample-map.ts          the worked example, shared by the seed and the showcase
+  seed.ts                seeds it into the local demo account
 scripts/
   user-add.ts            create a user / reset a password
   provision-users.ts     create invited accounts from INVITE_USERS (create-only)
   backfill-owner.ts      give pre-auth data an owner (idempotent)
+  showcase.ts            fill SHOWCASE_EMAIL's account with the example map
   use-postgres.mjs       swap the datasource to Postgres for the Vercel build
 src/
   proxy.ts               optimistic signed-out redirect (edge; no database)
@@ -202,9 +220,10 @@ automated — you don't change any code:
 - The `vercel-build` script (in `package.json`) runs on Vercel: swap to Postgres
   → generate client → create the tables (`prisma db push`) → **create invited
   accounts** (`provision-users`) → **give any unowned data an owner**
-  (`backfill-owner`) → seed the sample map **once** (only if the database is
-  empty) → `next build`. Every step after the push is idempotent, so this same
-  sequence runs safely on every redeploy.
+  (`backfill-owner`) → **fill the showcase account** (`showcase`) → seed the
+  sample map **once** (only if the database is empty) → `next build`. Every step
+  after the push is idempotent, so this same sequence runs safely on every
+  redeploy.
 
 ### One-time setup
 
