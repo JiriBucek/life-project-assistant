@@ -512,6 +512,7 @@ function LifeMapInner({
         startDate: new Date(),
         targetDate: new Date(Date.now() + 84 * 86_400_000),
         lastActivityAt: new Date(),
+        initiatives: [], // a brand-new project has no journey yet
         progress: { total: 0, done: 0, pct: 0 },
       };
       mutate({ type: "createProject", project }, () =>

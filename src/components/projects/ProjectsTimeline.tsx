@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { LifeMapProject } from "@/lib/data";
+import type { LifeMapInitiative, LifeMapProject } from "@/lib/data";
 import * as actions from "@/lib/actions";
 import { CLOSING_WITHIN_DAYS } from "@/lib/portfolio";
 import {
@@ -18,9 +18,13 @@ import { useTodayUTC } from "@/lib/useTodayUTC";
 // Desktop geometry: month labels on top, then one row per project. A row per
 // project (instead of packed lanes) means nothing ever overlaps, no matter how
 // many journeys run at once — the page simply grows downward and scrolls.
+// An expanded project adds one thin sub-row per initiative beneath its bar.
 const MONTHS_H = 30;
 const ROW_H = 44;
 const ROW_GAP = 10;
+const SUB_H = 24; // an initiative's sub-row
+const SUB_GAP = 6; // between sub-rows
+const SUB_TOP = 6; // between a project bar and its first initiative
 const NAME_COL = "15rem";
 
 /**
@@ -28,6 +32,10 @@ const NAME_COL = "15rem";
  * a column on the left. Desktop keeps the full picture plus drag-to-reschedule;
  * phones get calm tappable cards with the same information (rescheduling lives
  * inside the project there, where dates are edited precisely).
+ *
+ * Each project can be expanded one level — down to its initiatives — so "what
+ * am I actually working on right now?" is answerable without opening a journey.
+ * Expansion is per project and starts closed, keeping the default view calm.
  */
 export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
   const router = useRouter();
@@ -48,6 +56,17 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
     pxPerDay: number;
     moved: boolean;
   } | null>(null);
+
+  // Which projects are showing their initiatives. Collapsed by default, and each
+  // project opens and closes on its own.
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  function toggleOpen(id: string) {
+    setOpen((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
 
   const done =
     shift?.until != null &&
@@ -109,6 +128,10 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
       }).length
     : null;
 
+  // Days a project's whole journey is currently offset by (mid-drag, or while the
+  // server catches up) — its initiatives ride along with it.
+  const shiftOf = (id: string) => (shift?.id === id ? shift.days : 0);
+
   // ---- drag handlers (desktop bars) ----
   function onBarPointerDown(e: React.PointerEvent, p: LifeMapProject) {
     const track = trackRef.current;
@@ -157,8 +180,26 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
       .catch(() => setShift(null));
   }
 
+  // ---- vertical layout (rows grow when a project is expanded) ----
+  // The name column and the track share these numbers, so a project's bar and
+  // its name always sit on exactly the same line.
+  const rows: {
+    project: LifeMapProject;
+    expanded: boolean;
+    height: number;
+    top: number;
+  }[] = [];
+  let cursorY = MONTHS_H;
+  for (const p of sorted) {
+    const expanded = open.has(p.id) && p.initiatives.length > 0;
+    const subs = expanded ? p.initiatives.length : 0;
+    const height =
+      ROW_H + (subs > 0 ? SUB_TOP + subs * SUB_H + (subs - 1) * SUB_GAP : 0);
+    rows.push({ project: p, expanded, height, top: cursorY });
+    cursorY += height + ROW_GAP;
+  }
   // +18px at the bottom reserves room for the "today" tag under its line.
-  const trackHeight = MONTHS_H + sorted.length * (ROW_H + ROW_GAP) + 18;
+  const trackHeight = cursorY + 18;
 
   return (
     <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 md:px-6 md:py-8">
@@ -190,21 +231,70 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
             className="shrink-0 pr-5"
             style={{ width: NAME_COL, paddingTop: MONTHS_H }}
           >
-            {sorted.map((p) => (
+            {rows.map(({ project: p, expanded, height }) => (
               <div
                 key={p.id}
-                className="flex flex-col justify-center"
-                style={{ height: ROW_H, marginBottom: ROW_GAP }}
+                className="flex flex-col"
+                style={{ height, marginBottom: ROW_GAP }}
               >
-                <Link
-                  href={`/projects/${p.id}?from=projects`}
-                  className="truncate font-serif text-[15px] font-medium text-ink transition hover:text-sage-deep"
+                <div
+                  className="flex min-h-0 flex-col justify-center"
+                  style={{ height: ROW_H }}
                 >
-                  {p.name}
-                </Link>
-                <div className="truncate text-xs text-ink-faint">
-                  {formatDay(p.startDate)} → {formatDay(p.targetDate, true)}
+                  <div className="flex items-center gap-1">
+                    {p.initiatives.length > 0 ? (
+                      <button
+                        onClick={() => toggleOpen(p.id)}
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? "Hide" : "Show"} the initiatives of ${p.name}`}
+                        className="-ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded text-ink-faint transition hover:bg-line/60 hover:text-ink"
+                      >
+                        <Chevron open={expanded} />
+                      </button>
+                    ) : (
+                      <span className="-ml-1 h-5 w-5 shrink-0" aria-hidden />
+                    )}
+                    <Link
+                      href={`/projects/${p.id}?from=projects`}
+                      className="truncate font-serif text-[15px] font-medium text-ink transition hover:text-sage-deep"
+                    >
+                      {p.name}
+                    </Link>
+                  </div>
+                  <div className="truncate pl-5 text-xs text-ink-faint">
+                    {p.initiatives.length === 0
+                      ? `${formatDay(p.startDate)} → ${formatDay(p.targetDate, true)}`
+                      : `${doneCount(p)} of ${p.initiatives.length} initiative${
+                          p.initiatives.length === 1 ? "" : "s"
+                        } complete`}
+                  </div>
                 </div>
+
+                {expanded && (
+                  <ul
+                    className="flex flex-col pl-5"
+                    style={{ paddingTop: SUB_TOP, gap: SUB_GAP }}
+                  >
+                    {p.initiatives.map((i) => {
+                      const s = statusOf(i, today, shiftOf(p.id));
+                      return (
+                        <li
+                          key={i.id}
+                          className="flex items-center gap-1.5"
+                          style={{ height: SUB_H }}
+                        >
+                          <span
+                            aria-hidden
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`}
+                          />
+                          <span className="truncate text-xs text-ink-soft">
+                            {i.title}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             ))}
           </div>
@@ -229,37 +319,65 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
               </div>
             ))}
 
-            {sorted.map((p, row) => {
-              const shiftDays = shift?.id === p.id ? shift.days : 0;
+            {rows.map(({ project: p, expanded, top }) => {
+              const shiftDays = shiftOf(p.id);
               const start = addDays(p.startDate, shiftDays);
               const end = addDays(p.targetDate, shiftDays);
               const left = pct(start);
               const width = Math.max(pct(end) - left, 1.5);
               return (
-                <div
-                  key={p.id}
-                  title={`${p.name} · ${formatDay(start)} → ${formatDay(end, true)} · ${p.progress.pct}%`}
-                  onPointerDown={(e) => onBarPointerDown(e, p)}
-                  onPointerMove={onBarPointerMove}
-                  onPointerUp={() => onBarPointerUp(p)}
-                  className={`absolute flex cursor-grab touch-none select-none items-center overflow-hidden whitespace-nowrap rounded-full border-[1.5px] border-periwinkle bg-periwinkle-tint px-4 text-[13px] font-semibold text-periwinkle-deep active:cursor-grabbing ${
-                    shiftDays !== 0 ? "z-10 shadow-md" : ""
-                  }`}
-                  style={{
-                    left: `${left}%`,
-                    width: `${width}%`,
-                    top: MONTHS_H + row * (ROW_H + ROW_GAP),
-                    height: ROW_H,
-                  }}
-                >
+                <div key={p.id}>
                   <div
-                    aria-hidden
-                    className="absolute inset-y-0 left-0 rounded-l-full bg-periwinkle/55"
-                    style={{ width: `${p.progress.pct}%` }}
-                  />
-                  <span className="relative ml-auto text-xs font-medium text-ink-soft">
-                    {p.progress.pct}%
-                  </span>
+                    title={`${p.name} · ${formatDay(start)} → ${formatDay(end, true)} · ${p.progress.pct}%`}
+                    onPointerDown={(e) => onBarPointerDown(e, p)}
+                    onPointerMove={onBarPointerMove}
+                    onPointerUp={() => onBarPointerUp(p)}
+                    className={`absolute flex cursor-grab touch-none select-none items-center overflow-hidden whitespace-nowrap rounded-full border-[1.5px] border-periwinkle bg-periwinkle-tint px-4 text-[13px] font-semibold text-periwinkle-deep active:cursor-grabbing ${
+                      shiftDays !== 0 ? "z-10 shadow-md" : ""
+                    }`}
+                    style={{
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      top,
+                      height: ROW_H,
+                    }}
+                  >
+                    <div
+                      aria-hidden
+                      className="absolute inset-y-0 left-0 rounded-l-full bg-periwinkle/55"
+                      style={{ width: `${p.progress.pct}%` }}
+                    />
+                    <span className="relative ml-auto text-xs font-medium text-ink-soft">
+                      {p.progress.pct}%
+                    </span>
+                  </div>
+
+                  {/* One level down: the project's initiatives, each on its own
+                      thin line, coloured by where it stands today. */}
+                  {expanded &&
+                    p.initiatives.map((i, idx) => {
+                      const s = statusOf(i, today, shiftDays);
+                      const iStart = addDays(i.startDate, shiftDays);
+                      const iEnd = addDays(i.endDate, shiftDays);
+                      const iLeft = pct(iStart);
+                      const iWidth = Math.max(pct(iEnd) - iLeft, 1);
+                      return (
+                        <div
+                          key={i.id}
+                          data-testid="initiative-sub-bar"
+                          title={`${i.title} · ${formatDay(iStart)} → ${formatDay(iEnd, true)} · ${s.label} · ${i.progress.done}/${i.progress.total} epics`}
+                          className={`absolute flex items-center overflow-hidden whitespace-nowrap rounded-full border px-2.5 text-[10px] font-medium ${s.bar}`}
+                          style={{
+                            left: `${iLeft}%`,
+                            width: `${iWidth}%`,
+                            top: top + ROW_H + SUB_TOP + idx * (SUB_H + SUB_GAP),
+                            height: SUB_H,
+                          }}
+                        >
+                          <span className="truncate">{s.label}</span>
+                        </div>
+                      );
+                    })}
                 </div>
               );
             })}
@@ -290,7 +408,8 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
         </div>
 
         <p className="mt-2 text-xs text-ink-faint">
-          Drag a bar to reschedule a whole project · click it to step inside
+          Drag a bar to reschedule a whole project · click it to step inside ·
+          open a project&rsquo;s arrow to see its initiatives
         </p>
       </div>
 
@@ -299,38 +418,90 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
         {sorted.map((p) => {
           const left = pct(p.startDate);
           const width = Math.max(pct(p.targetDate) - left, 2);
+          const expanded = open.has(p.id) && p.initiatives.length > 0;
           return (
-            <Link
+            <div
               key={p.id}
-              href={`/projects/${p.id}?from=projects`}
-              className="block rounded-xl border border-line bg-paper-raised p-4 shadow-sm transition active:bg-paper"
+              className="rounded-xl border border-line bg-paper-raised p-4 shadow-sm"
             >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="truncate font-serif text-base font-medium text-ink">
-                  {p.name}
-                </span>
-                <span className="shrink-0 rounded-full bg-periwinkle-tint px-2 py-0.5 text-[11px] font-semibold text-periwinkle-deep">
-                  {p.progress.pct}%
-                </span>
-              </div>
-              {/* Where this journey sits within all journeys' shared range */}
-              <div className="relative mt-3 h-2 rounded-full bg-line/70">
-                <div
-                  className="absolute inset-y-0 rounded-full bg-periwinkle"
-                  style={{ left: `${left}%`, width: `${width}%` }}
-                />
-                {today && (
+              <Link
+                href={`/projects/${p.id}?from=projects`}
+                className="block transition active:opacity-60"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="truncate font-serif text-base font-medium text-ink">
+                    {p.name}
+                  </span>
+                  <span className="shrink-0 rounded-full bg-periwinkle-tint px-2 py-0.5 text-[11px] font-semibold text-periwinkle-deep">
+                    {p.progress.pct}%
+                  </span>
+                </div>
+                {/* Where this journey sits within all journeys' shared range */}
+                <div className="relative mt-3 h-2 rounded-full bg-line/70">
                   <div
-                    aria-hidden
-                    className="absolute -inset-y-1 w-0.5 rounded-full bg-clay"
-                    style={{ left: `${pct(today)}%` }}
+                    className="absolute inset-y-0 rounded-full bg-periwinkle"
+                    style={{ left: `${left}%`, width: `${width}%` }}
                   />
-                )}
-              </div>
-              <div className="mt-2 text-xs text-ink-faint">
-                {formatDay(p.startDate)} → {formatDay(p.targetDate, true)}
-              </div>
-            </Link>
+                  {today && (
+                    <div
+                      aria-hidden
+                      className="absolute -inset-y-1 w-0.5 rounded-full bg-clay"
+                      style={{ left: `${pct(today)}%` }}
+                    />
+                  )}
+                </div>
+                <div className="mt-2 text-xs text-ink-faint">
+                  {formatDay(p.startDate)} → {formatDay(p.targetDate, true)}
+                </div>
+              </Link>
+
+              {/* One level down, on demand: this project's initiatives */}
+              {p.initiatives.length > 0 && (
+                <>
+                  <button
+                    onClick={() => toggleOpen(p.id)}
+                    aria-expanded={expanded}
+                    aria-label={`${expanded ? "Hide" : "Show"} the initiatives of ${p.name}`}
+                    className="mt-3 flex w-full items-center gap-1.5 border-t border-line pt-2.5 text-xs font-medium text-ink-soft"
+                  >
+                    <Chevron open={expanded} />
+                    {p.initiatives.length} initiative
+                    {p.initiatives.length === 1 ? "" : "s"}
+                    <span className="ml-auto text-ink-faint">
+                      {doneCount(p)} complete
+                    </span>
+                  </button>
+
+                  {expanded && (
+                    <ul className="mt-2 space-y-2">
+                      {p.initiatives.map((i) => {
+                        const s = statusOf(i, today, 0);
+                        return (
+                          <li
+                            key={i.id}
+                            className="flex items-center gap-2"
+                            data-testid="initiative-sub-row"
+                          >
+                            <span
+                              aria-hidden
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`}
+                            />
+                            <span className="flex-1 truncate text-xs text-ink">
+                              {i.title}
+                            </span>
+                            <span
+                              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${s.chip}`}
+                            >
+                              {s.label}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
           );
         })}
         {today && (
@@ -341,6 +512,84 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
         )}
       </div>
     </div>
+  );
+}
+
+// Where an initiative stands, said gently: finished, live right now, still to
+// come, or past its window and still open (an invitation to adapt, not a scold).
+type StatusStyle = {
+  label: string;
+  dot: string;
+  bar: string;
+  chip: string;
+};
+
+const DONE: StatusStyle = {
+  label: "complete",
+  dot: "bg-sage",
+  bar: "border-sage bg-sage-tint text-sage-deep",
+  chip: "bg-sage-tint text-sage-deep",
+};
+const ACTIVE: StatusStyle = {
+  label: "in progress",
+  dot: "bg-periwinkle-deep",
+  bar: "border-periwinkle-deep bg-periwinkle text-periwinkle-deep",
+  chip: "bg-periwinkle text-periwinkle-deep",
+};
+const AHEAD: StatusStyle = {
+  label: "ahead",
+  dot: "bg-line-strong",
+  bar: "border-line-strong bg-paper text-ink-faint",
+  chip: "bg-line/70 text-ink-soft",
+};
+const STILL_OPEN: StatusStyle = {
+  label: "still open",
+  dot: "bg-clay",
+  bar: "border-clay bg-clay-tint text-[#8a5238]",
+  chip: "bg-clay-tint text-[#8a5238]",
+};
+
+const isInitiativeDone = (i: LifeMapInitiative) =>
+  i.progress.total > 0 && i.progress.done === i.progress.total;
+
+const doneCount = (p: LifeMapProject) =>
+  p.initiatives.filter(isInitiativeDone).length;
+
+/** `today` is null until the client knows the date — then everything not already
+ *  complete simply reads as "ahead", so server and first client render agree. */
+function statusOf(
+  i: LifeMapInitiative,
+  today: Date | null,
+  shiftDays: number,
+): StatusStyle {
+  if (isInitiativeDone(i)) return DONE;
+  if (!today) return AHEAD;
+  const now = today.getTime();
+  if (now < addDays(i.startDate, shiftDays).getTime()) return AHEAD;
+  if (now > addDays(i.endDate, shiftDays).getTime()) return STILL_OPEN;
+  return ACTIVE;
+}
+
+/** A quiet disclosure arrow: right when closed, down when open. */
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      aria-hidden
+      focusable="false"
+      className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+    >
+      <path
+        d="M3 1.5 L7 5 L3 8.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

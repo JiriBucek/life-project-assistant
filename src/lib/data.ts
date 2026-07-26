@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { computePortfolioSummary } from "@/lib/portfolio";
+import { addDays } from "@/lib/timeline";
 
 export type ProgressStat = { total: number; done: number; pct: number };
 
@@ -24,6 +25,7 @@ export async function getLifeMap() {
       include: {
         values: { select: { id: true, name: true, areaId: true } },
         initiatives: {
+          orderBy: { startDay: "asc" },
           include: { epics: { select: { isComplete: true, updatedAt: true } } },
         },
         reflections: {
@@ -52,6 +54,17 @@ export async function getLifeMap() {
         ...p.reflections.map((r) => r.createdAt.getTime()),
       ),
     );
+    // One level down for the Projects roadmap: each initiative as a real date
+    // window (startDay/duration are days from the project's Start Date) with its
+    // own epic roll-up, so a row can show what's finished and what's live now.
+    const initiatives = p.initiatives.map((i) => ({
+      id: i.id,
+      title: i.title,
+      startDate: addDays(p.startDate, i.startDay),
+      endDate: addDays(p.startDate, i.startDay + i.duration),
+      progress: pct(i.epics.filter((e) => e.isComplete).length, i.epics.length),
+    }));
+
     return {
       id: p.id,
       name: p.name,
@@ -64,6 +77,7 @@ export async function getLifeMap() {
       startDate: p.startDate,
       targetDate: p.targetDate,
       lastActivityAt,
+      initiatives,
       progress: pct(done, epics.length),
     };
   });
@@ -93,6 +107,7 @@ export type PortfolioSummary = Awaited<
 export type LifeMapData = Awaited<ReturnType<typeof getLifeMap>>;
 export type LifeMapArea = LifeMapData["areas"][number];
 export type LifeMapProject = LifeMapData["projects"][number];
+export type LifeMapInitiative = LifeMapProject["initiatives"][number];
 
 export async function getProject(id: string) {
   const project = await prisma.project.findUnique({

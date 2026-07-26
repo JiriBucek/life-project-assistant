@@ -14,6 +14,7 @@ import {
   toDateInputValue,
 } from "@/lib/timeline";
 import { Timeline } from "./Timeline";
+import { EpicList } from "./EpicList";
 import { ReflectionPanel } from "./ReflectionPanel";
 
 export function ProjectJourney({
@@ -33,7 +34,6 @@ export function ProjectJourney({
     project.initiatives[0]?.id ?? null,
   );
   const [newInitiative, setNewInitiative] = useState("");
-  const [newEpic, setNewEpic] = useState("");
 
   const selected =
     project.initiatives.find((i) => i.id === selectedId) ??
@@ -66,6 +66,18 @@ export function ProjectJourney({
         progress: i.progress,
       })),
     [project.initiatives],
+  );
+
+  // Just the fields the epic list needs, so unrelated re-renders (typing an
+  // initiative name, a transition settling) never disturb an in-flight drag.
+  const epicRows = useMemo(
+    () =>
+      (selected?.epics ?? []).map((e) => ({
+        id: e.id,
+        title: e.title,
+        isComplete: e.isComplete,
+      })),
+    [selected?.epics],
   );
 
   function bringInside() {
@@ -278,62 +290,11 @@ export function ProjectJourney({
                 }
               />
 
-              <div className="mt-4 space-y-1.5">
-                {selected.epics.map((epic) => (
-                  <div
-                    key={epic.id}
-                    className="group/epic flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-paper"
-                  >
-                    <button
-                      onClick={() =>
-                        run(() => actions.toggleEpic(epic.id, !epic.isComplete))
-                      }
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition ${
-                        epic.isComplete
-                          ? "border-sage bg-sage text-white"
-                          : "border-line-strong hover:border-sage"
-                      }`}
-                      aria-label="Toggle complete"
-                    >
-                      {epic.isComplete && (
-                        <span className="text-xs leading-none">✓</span>
-                      )}
-                    </button>
-                    <div
-                      className={`flex-1 text-sm ${
-                        epic.isComplete
-                          ? "text-ink-faint line-through"
-                          : "text-ink"
-                      }`}
-                    >
-                      <InlineEdit
-                        value={epic.title}
-                        onCommit={(title) =>
-                          run(() => actions.updateEpic(epic.id, title))
-                        }
-                      />
-                    </div>
-                    <button
-                      onClick={() => run(() => actions.deleteEpic(epic.id))}
-                      className="text-ink-faint opacity-0 transition hover:text-[#b15a4a] group-hover/epic:opacity-100"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <input
-                value={newEpic}
-                onChange={(e) => setNewEpic(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newEpic.trim()) {
-                    run(() => actions.createEpic(selected.id, newEpic));
-                    setNewEpic("");
-                  }
-                }}
-                placeholder="+ add an epic"
-                className="mt-2 w-full rounded-lg border border-dashed border-line-strong bg-transparent px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-sage focus:outline-none"
+              {/* Epics, in the order the user has arranged them (drag to change) */}
+              <EpicList
+                key={selected.id}
+                initiativeId={selected.id}
+                epics={epicRows}
               />
             </div>
           ) : (

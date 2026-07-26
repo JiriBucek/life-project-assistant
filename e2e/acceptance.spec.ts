@@ -235,6 +235,74 @@ test("the timeline supports dragging an initiative to a later start", async ({
   expect(persisted!.x).toBeGreaterThan(before!.x + 40);
 });
 
+test("epics inside an initiative can be dragged into a new order", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await createArea(page, "Craft");
+  await addValue(page, "Craft", "Mastery");
+
+  await page.getByRole("button", { name: "+ Project" }).click();
+  const dialog = page.getByTestId("project-dialog");
+  await dialog.getByPlaceholder("e.g. Run a half marathon").fill("Build a shed");
+  await dialog
+    .getByPlaceholder(/benefit you/i)
+    .fill("Somewhere to make things.");
+  await dialog.getByRole("button", { name: "Mastery" }).click();
+  await dialog.getByRole("button", { name: "Create project" }).click();
+
+  await page
+    .locator(".react-flow__node")
+    .filter({ hasText: "Build a shed" })
+    .getByRole("button", { name: /Open journey/ })
+    .click();
+
+  await page.getByPlaceholder("Name an initiative…").fill("Prepare the site");
+  await page.getByRole("button", { name: "+ Initiative" }).click();
+  await page.getByTestId("initiative-bar").getByText("Prepare the site").click();
+
+  const epicInput = page.getByPlaceholder("+ add an epic");
+  for (const title of ["Clear the ground", "Pour the base", "Order timber"]) {
+    await epicInput.fill(title);
+    await epicInput.press("Enter");
+    await expect(page.getByText(title)).toBeVisible();
+  }
+
+  const rows = page.getByTestId("epic-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("Clear the ground");
+  await expect(rows.nth(2)).toContainText("Order timber");
+
+  // Drag the last epic up by its grip so it becomes the first step.
+  const grip = rows.nth(2).getByRole("button", { name: "Reorder Order timber" });
+  const from = (await grip.boundingBox())!;
+  const to = (await rows.nth(0).boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  // A few pixels first to pass the drag activation threshold, then all the way up.
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 - 8, {
+    steps: 4,
+  });
+  await page.mouse.move(from.x + from.width / 2, to.y + 3, { steps: 12 });
+  await page.mouse.up();
+
+  await expect(rows.nth(0)).toContainText("Order timber");
+  await expect(rows.nth(1)).toContainText("Clear the ground");
+  await expect(rows.nth(2)).toContainText("Pour the base");
+
+  // The new order is the persisted one.
+  await page.reload();
+  const reloaded = page.getByTestId("epic-row");
+  await expect(reloaded.nth(0)).toContainText("Order timber");
+  await expect(reloaded.nth(1)).toContainText("Clear the ground");
+
+  // An epic added afterwards still lands at the end of the reordered list.
+  await page.getByPlaceholder("+ add an epic").fill("Paint it");
+  await page.getByPlaceholder("+ add an epic").press("Enter");
+  await expect(reloaded).toHaveCount(4);
+  await expect(reloaded.nth(3)).toContainText("Paint it");
+});
+
 test("deleting a value disconnects it from any linked project (adaptation)", async ({
   page,
 }) => {
@@ -337,6 +405,83 @@ test("the Projects page shows every journey on one shared timeline", async ({
   await expect(page).toHaveURL(/\/projects\/[^?]+\?from=projects/);
   await page.getByRole("link", { name: "← Back to projects" }).first().click();
   await expect(page).toHaveURL(/\/projects$/);
+});
+
+/** Create a project from the Life Map and open its journey. */
+async function createProjectWithJourney(page: Page, name: string, why: string) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "+ Project" }).click();
+  const dialog = page.getByTestId("project-dialog");
+  await dialog.getByPlaceholder("e.g. Run a half marathon").fill(name);
+  await dialog.getByPlaceholder(/benefit you/i).fill(why);
+  await dialog.getByRole("button", { name: "Create project" }).click();
+  await page
+    .locator(".react-flow__node")
+    .filter({ hasText: name })
+    .getByRole("button", { name: /Open journey/ })
+    .click();
+  await expect(page).toHaveURL(/\/projects\/.+/);
+}
+
+async function addInitiative(page: Page, title: string) {
+  await page.getByPlaceholder("Name an initiative…").fill(title);
+  await page.getByRole("button", { name: "+ Initiative" }).click();
+  await expect(
+    page.getByTestId("initiative-bar").getByText(title),
+  ).toBeVisible();
+}
+
+test("the Projects roadmap expands each project down to its initiatives", async ({
+  page,
+}) => {
+  await createProjectWithJourney(page, "Grow a garden", "Food and quiet.");
+  await addInitiative(page, "Prepare the beds");
+  await addInitiative(page, "Plant the seeds");
+
+  // Finish the first initiative's only epic, so it reads as complete.
+  await page.getByTestId("initiative-bar").getByText("Prepare the beds").click();
+  const epicInput = page.getByPlaceholder("+ add an epic");
+  await epicInput.fill("Turn the soil");
+  await epicInput.press("Enter");
+  await page.getByLabel("Toggle complete").first().click();
+  await expect(page.getByText(/1 of 1 epics complete/)).toBeVisible();
+
+  // A second journey, so expansion can be shown to be per project.
+  await createProjectWithJourney(page, "Learn to sail", "Salt air and quiet.");
+  await addInitiative(page, "Take the course");
+
+  // On the roadmap the initiative level starts hidden.
+  await page.getByRole("navigation").getByRole("link", { name: "Projects" }).click();
+  await expect(page.getByText("1 of 2 initiatives complete")).toBeVisible();
+  const subBars = page.getByTestId("initiative-sub-bar");
+  await expect(subBars).toHaveCount(0);
+
+  // Expanding one project shows only its own initiatives, with their standing.
+  await page
+    .getByRole("button", { name: "Show the initiatives of Grow a garden" })
+    .click();
+  await expect(subBars).toHaveCount(2);
+  await expect(subBars.nth(0)).toContainText("complete");
+  await expect(subBars.nth(1)).toContainText("ahead");
+  // (the titles also exist in the phone card markup, hidden at this viewport)
+  await expect(page.getByText("Prepare the beds").first()).toBeVisible();
+  await expect(page.getByText("Plant the seeds").first()).toBeVisible();
+  // The other project is untouched — still collapsed, still offering to open.
+  await expect(
+    page.getByRole("button", { name: "Show the initiatives of Learn to sail" }),
+  ).toBeVisible();
+
+  // Both can be open at once…
+  await page
+    .getByRole("button", { name: "Show the initiatives of Learn to sail" })
+    .click();
+  await expect(subBars).toHaveCount(3);
+
+  // …and each closes on its own.
+  await page
+    .getByRole("button", { name: "Hide the initiatives of Grow a garden" })
+    .click();
+  await expect(subBars).toHaveCount(1);
 });
 
 test.describe("on a phone", () => {

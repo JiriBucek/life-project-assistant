@@ -253,9 +253,19 @@ export async function deleteInitiative(id: string) {
 export async function createEpic(initiativeId: string, title: string) {
   const trimmed = title.trim();
   if (!trimmed) return;
-  const count = await prisma.epic.count({ where: { initiativeId } });
+  // Sit after the current last epic. Based on the highest order rather than a
+  // count, so a new epic still lands at the end after deletions or a reorder
+  // (a count can collide with an order that is already taken).
+  const last = await prisma.epic.aggregate({
+    where: { initiativeId },
+    _max: { order: true },
+  });
   const epic = await prisma.epic.create({
-    data: { initiativeId, title: trimmed, order: count },
+    data: {
+      initiativeId,
+      title: trimmed,
+      order: last._max.order === null ? 0 : last._max.order + 1,
+    },
     include: { initiative: { select: { projectId: true } } },
   });
   revalidatePath(`/projects/${epic.initiative.projectId}`);
@@ -287,6 +297,45 @@ export async function deleteEpic(id: string) {
     include: { initiative: { select: { projectId: true } } },
   });
   revalidatePath(`/projects/${epic.initiative.projectId}`);
+}
+
+/**
+ * Put an initiative's epics in the order the user just dragged them into —
+ * which one comes first, which comes next. `orderedIds` is the full list as the
+ * client sees it; anything the client didn't know about (an epic added in
+ * another tab meanwhile) keeps its relative place at the end, so a stale drag
+ * can never make an epic disappear from the list.
+ */
+export async function reorderEpics(initiativeId: string, orderedIds: string[]) {
+  const initiative = await prisma.initiative.findUnique({
+    where: { id: initiativeId },
+    select: { projectId: true },
+  });
+  if (!initiative) return;
+
+  const epics = await prisma.epic.findMany({
+    where: { initiativeId },
+    select: { id: true },
+    orderBy: { order: "asc" },
+  });
+  const own = new Set(epics.map((e) => e.id));
+  const placed = new Set<string>();
+  const finalOrder: string[] = [];
+  for (const id of orderedIds) {
+    if (own.has(id) && !placed.has(id)) {
+      placed.add(id);
+      finalOrder.push(id);
+    }
+  }
+  for (const e of epics) if (!placed.has(e.id)) finalOrder.push(e.id);
+  if (finalOrder.length === 0) return;
+
+  await prisma.$transaction(
+    finalOrder.map((id, index) =>
+      prisma.epic.update({ where: { id }, data: { order: index } }),
+    ),
+  );
+  revalidatePath(`/projects/${initiative.projectId}`);
 }
 
 // ---------------------------------------------------------------------------
