@@ -161,3 +161,78 @@ function monthLabel(value: Date, withYear: boolean): string {
     timeZone: "UTC",
   });
 }
+
+/** Compact month label for a dense axis, e.g. `Jul ’26`. */
+export function shortMonthYear(value: Date | string): string {
+  const d = toUTCDay(value);
+  return `${d.toLocaleDateString(LABEL_LOCALE, {
+    month: "short",
+    timeZone: "UTC",
+  })} ’${String(d.getUTCFullYear() % 100).padStart(2, "0")}`;
+}
+
+export type RangeTick = {
+  /** Days from the range start. */
+  days: number;
+  label: string;
+  /** Worth drawing a touch stronger: a new year, or a new month among weeks. */
+  major: boolean;
+};
+
+/**
+ * Ticks along a shared roadmap range (many projects on one axis), as opposed to
+ * `buildGridlines`, which is anchored to a single project's start.
+ *
+ * - month: the 1st of every month inside the range.
+ * - week: every Monday inside the range; the week carrying a month's 1st is
+ *   marked major so the eye still finds the months underneath the detail.
+ */
+export function buildRangeTicks(
+  rangeStart: Date,
+  rangeEnd: Date,
+  unit: "month" | "week",
+): RangeTick[] {
+  const ticks: RangeTick[] = [];
+  const start = toUTCDay(rangeStart);
+  const end = toUTCDay(rangeEnd).getTime();
+
+  if (unit === "month") {
+    let cursor = firstOfNextMonth(start);
+    while (cursor.getTime() <= end) {
+      ticks.push({
+        days: dayDiff(start, cursor),
+        label: shortMonthYear(cursor),
+        major: cursor.getUTCMonth() === 0,
+      });
+      cursor = firstOfNextMonth(cursor);
+    }
+    return ticks;
+  }
+
+  let cursor = mondayOnOrAfter(start);
+  while (cursor.getTime() <= end) {
+    const weekEnd = addDays(cursor, 6);
+    // The week that contains the 1st of a month — either it starts on it, or
+    // the month rolls over somewhere inside the week.
+    const newMonth =
+      cursor.getUTCDate() === 1 || weekEnd.getUTCMonth() !== cursor.getUTCMonth();
+    // Only the first week of a January needs the year spelled out.
+    const opensAYear = cursor.getUTCMonth() === 0 && cursor.getUTCDate() <= 7;
+    ticks.push({
+      days: dayDiff(start, cursor),
+      label: formatDay(cursor, opensAYear),
+      major: newMonth,
+    });
+    cursor = addDays(cursor, 7);
+  }
+  return ticks;
+}
+
+function firstOfNextMonth(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+}
+
+/** The Monday on or after `d` (weeks start on Monday). */
+function mondayOnOrAfter(d: Date): Date {
+  return addDays(d, (1 - d.getUTCDay() + 7) % 7);
+}

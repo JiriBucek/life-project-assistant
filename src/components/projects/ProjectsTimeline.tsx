@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { LifeMapInitiative, LifeMapProject } from "@/lib/data";
@@ -8,6 +8,7 @@ import * as actions from "@/lib/actions";
 import { CLOSING_WITHIN_DAYS } from "@/lib/portfolio";
 import {
   addDays,
+  buildRangeTicks,
   dayDiff,
   formatDay,
   toDateInputValue,
@@ -15,7 +16,7 @@ import {
 } from "@/lib/timeline";
 import { useTodayUTC } from "@/lib/useTodayUTC";
 
-// Desktop geometry: month labels on top, then one row per project. A row per
+// Desktop geometry: date labels on top, then one row per project. A row per
 // project (instead of packed lanes) means nothing ever overlaps, no matter how
 // many journeys run at once — the page simply grows downward and scrolls.
 // An expanded project adds one thin sub-row per initiative beneath its bar.
@@ -28,6 +29,33 @@ const SUB_TOP = 6; // between a project bar and its first initiative
 const NAME_COL = "15rem";
 
 /**
+ * How close the time axis is held.
+ *
+ * "fit" is the calm default: the whole road, however long, squeezed into the
+ * width available — no scrolling, but a two-week initiative inside a two-year
+ * range is a sliver. The two zoom levels trade that overview for room: they fix
+ * a real width per day (the same densities the Project Journey uses) and let
+ * the axis scroll sideways, so short work becomes readable.
+ */
+type Zoom = "fit" | "month" | "week";
+
+const ZOOMS: { id: Zoom; label: string; hint: string }[] = [
+  { id: "fit", label: "Fit", hint: "The whole road at once" },
+  { id: "month", label: "Months", hint: "Room to read a month — scroll sideways" },
+  { id: "week", label: "Weeks", hint: "Room to read a week — the closest view" },
+];
+
+// Pixels per day when zoomed: a month ≈ 122px, a week ≈ 91px.
+const PX_PER_DAY: Record<Exclude<Zoom, "fit">, number> = { month: 4, week: 13 };
+// Breathing room after the last day, so the final label is never clipped.
+const TRACK_TAIL = 64;
+
+export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
+  if (projects.length === 0) return <EmptyProjects />;
+  return <Roadmap projects={projects} />;
+}
+
+/**
  * The Projects page: every project as a bar on one shared time axis, names in
  * a column on the left. Desktop keeps the full picture plus drag-to-reschedule;
  * phones get calm tappable cards with the same information (rescheduling lives
@@ -37,10 +65,11 @@ const NAME_COL = "15rem";
  * am I actually working on right now?" is answerable without opening a journey.
  * Expansion is per project and starts closed, keeping the default view calm.
  */
-export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
+function Roadmap({ projects }: { projects: LifeMapProject[] }) {
   const router = useRouter();
   const today = useTodayUTC();
   const trackRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // A live drag offsets one bar by whole days; after release the offset is
   // kept until the server round-trip delivers the new start date, so the bar
@@ -56,6 +85,11 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
     pxPerDay: number;
     moved: boolean;
   } | null>(null);
+
+  // How close the axis is held. Starts at "fit" — the whole road, no scrolling.
+  const [zoom, setZoom] = useState<Zoom>("fit");
+  const zoomed = zoom !== "fit";
+  const pxPerDay = zoomed ? PX_PER_DAY[zoom] : 0;
 
   // Which projects are showing their initiatives. Collapsed by default, and each
   // project opens and closes on its own.
@@ -75,8 +109,6 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
     );
   if (done) setShift(null); // render-phase clear once the server caught up
 
-  if (projects.length === 0) return <EmptyProjects />;
-
   const sorted = [...projects].sort(
     (a, b) => toUTCDay(a.startDate).getTime() - toUTCDay(b.startDate).getTime(),
   );
@@ -90,25 +122,31 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
   const rangeStart = addDays(new Date(Math.min(...times)), -7);
   const rangeEnd = addDays(new Date(Math.max(...times)), 10);
   const totalDays = Math.max(1, dayDiff(rangeStart, rangeEnd));
-  const pct = (d: Date | string) => (dayDiff(rangeStart, d) / totalDays) * 100;
 
-  // ---- month gridlines (pinned locale; every label carries its year) ----
-  const months: { left: number; label: string }[] = [];
-  let cursor = new Date(
-    Date.UTC(rangeStart.getUTCFullYear(), rangeStart.getUTCMonth() + 1, 1),
-  );
-  while (cursor.getTime() <= rangeEnd.getTime()) {
-    months.push({
-      left: pct(cursor),
-      label: `${cursor.toLocaleDateString("en-US", {
-        month: "short",
-        timeZone: "UTC",
-      })} ’${String(cursor.getUTCFullYear() % 100).padStart(2, "0")}`,
-    });
-    cursor = new Date(
-      Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1),
-    );
-  }
+  // Horizontal placement. Fitting the range works in percentages (no measuring,
+  // so it renders identically on the server); a zoom level works in real pixels
+  // and lets the track overflow into a sideways scroll.
+  const days = (d: Date | string) => dayDiff(rangeStart, d);
+  const cssX = (d: Date | string) =>
+    zoomed ? `${days(d) * pxPerDay}px` : `${(days(d) / totalDays) * 100}%`;
+  /** Width of a span, never so thin it disappears. */
+  const cssW = (
+    from: Date | string,
+    to: Date | string,
+    minPx: number,
+    minPct: number,
+  ) =>
+    zoomed
+      ? `${Math.max((days(to) - days(from)) * pxPerDay, minPx)}px`
+      : `${Math.max(((days(to) - days(from)) / totalDays) * 100, minPct)}%`;
+  /** Zoomed, we know a bar's real width — so we know whether a label fits. */
+  const fits = (from: Date | string, to: Date | string, needPx: number) =>
+    zoomed && (days(to) - days(from)) * pxPerDay >= needPx;
+  // Only the phone cards always fit, so they keep a plain percentage helper.
+  const pct = (d: Date | string) => (days(d) / totalDays) * 100;
+
+  // ---- axis ticks: months, or every Monday when zoomed to weeks ----
+  const ticks = buildRangeTicks(rangeStart, rangeEnd, zoom === "week" ? "week" : "month");
 
   // ---- this page's own statistics: load and horizon, not life balance ----
   const isComplete = (p: LifeMapProject) =>
@@ -140,7 +178,9 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
     dragRef.current = {
       id: p.id,
       startX: e.clientX,
-      pxPerDay: track.clientWidth / totalDays,
+      // Fitted, a day is however wide the track happens to be; zoomed, it is
+      // the fixed density — so a drag always moves the same days as pixels.
+      pxPerDay: zoomed ? pxPerDay : track.clientWidth / totalDays,
       moved: false,
     };
   }
@@ -200,6 +240,16 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
   }
   // +18px at the bottom reserves room for the "today" tag under its line.
   const trackHeight = cursorY + 18;
+  const trackWidth = zoomed ? totalDays * pxPerDay + TRACK_TAIL : undefined;
+
+  // Zooming in throws most of the road off-screen, so land where the user
+  // actually is: today a third of the way in (or the very start, before it).
+  const todayDays = today ? days(today) : 0;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !zoomed) return;
+    el.scrollLeft = Math.max(0, todayDays * pxPerDay - el.clientWidth / 3);
+  }, [zoom, zoomed, pxPerDay, todayDays]);
 
   return (
     <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 md:px-6 md:py-8">
@@ -221,6 +271,33 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
               {finishingSoon} finishing soon
             </span>
           )}
+        </div>
+
+        {/* How close to hold the axis. Desktop only — the phone cards below
+            always show the whole range. */}
+        <div
+          role="group"
+          aria-label="How close to hold the timeline"
+          className="ml-auto hidden items-center gap-0.5 self-center rounded-full border border-line bg-paper-raised p-0.5 md:flex"
+        >
+          {ZOOMS.map((z) => {
+            const active = z.id === zoom;
+            return (
+              <button
+                key={z.id}
+                onClick={() => setZoom(z.id)}
+                aria-pressed={active}
+                title={z.hint}
+                className={`rounded-full px-3 py-1 text-xs transition ${
+                  active
+                    ? "bg-sage font-semibold text-white"
+                    : "font-medium text-ink-soft hover:bg-ink/5 hover:text-ink"
+                }`}
+              >
+                {z.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -300,116 +377,145 @@ export function ProjectsTimeline({ projects }: { projects: LifeMapProject[] }) {
           </div>
 
           <div
-            ref={trackRef}
-            className="relative min-w-0 flex-1"
-            style={{ height: trackHeight }}
+            ref={scrollRef}
+            data-testid="roadmap-track"
+            className={`min-w-0 flex-1 ${zoomed ? "overflow-x-auto pb-2" : ""}`}
           >
-            {months.map((m) => (
-              <div key={`${m.label}-${m.left}`}>
-                <span
-                  className="absolute -translate-x-1/2 text-[10.5px] uppercase tracking-wider text-ink-faint"
-                  style={{ left: `${m.left}%`, top: 0 }}
-                >
-                  {m.label}
-                </span>
-                <div
-                  className="absolute w-px bg-line"
-                  style={{ left: `${m.left}%`, top: 20, bottom: 22 }}
-                />
-              </div>
-            ))}
-
-            {rows.map(({ project: p, expanded, top }) => {
-              const shiftDays = shiftOf(p.id);
-              const start = addDays(p.startDate, shiftDays);
-              const end = addDays(p.targetDate, shiftDays);
-              const left = pct(start);
-              const width = Math.max(pct(end) - left, 1.5);
-              return (
-                <div key={p.id}>
-                  <div
-                    title={`${p.name} · ${formatDay(start)} → ${formatDay(end, true)} · ${p.progress.pct}%`}
-                    onPointerDown={(e) => onBarPointerDown(e, p)}
-                    onPointerMove={onBarPointerMove}
-                    onPointerUp={() => onBarPointerUp(p)}
-                    className={`absolute flex cursor-grab touch-none select-none items-center overflow-hidden whitespace-nowrap rounded-full border-[1.5px] border-periwinkle bg-periwinkle-tint px-4 text-[13px] font-semibold text-periwinkle-deep active:cursor-grabbing ${
-                      shiftDays !== 0 ? "z-10 shadow-md" : ""
-                    }`}
-                    style={{
-                      left: `${left}%`,
-                      width: `${width}%`,
-                      top,
-                      height: ROW_H,
-                    }}
-                  >
-                    <div
-                      aria-hidden
-                      className="absolute inset-y-0 left-0 rounded-l-full bg-periwinkle/55"
-                      style={{ width: `${p.progress.pct}%` }}
-                    />
-                    <span className="relative ml-auto text-xs font-medium text-ink-soft">
-                      {p.progress.pct}%
+            <div
+              ref={trackRef}
+              className="relative"
+              style={{ height: trackHeight, width: trackWidth }}
+            >
+              {ticks.map((t) => {
+                const left = cssX(addDays(rangeStart, t.days));
+                return (
+                  <div key={t.days}>
+                    <span
+                      className={`absolute -translate-x-1/2 whitespace-nowrap text-[10.5px] uppercase tracking-wider ${
+                        t.major ? "font-semibold text-ink-soft" : "text-ink-faint"
+                      }`}
+                      style={{ left, top: 0 }}
+                    >
+                      {t.label}
                     </span>
+                    <div
+                      className={`absolute w-px ${
+                        t.major ? "bg-line-strong" : "bg-line"
+                      }`}
+                      style={{ left, top: 20, bottom: 22 }}
+                    />
                   </div>
+                );
+              })}
 
-                  {/* One level down: the project's initiatives, each on its own
-                      thin line, coloured by where it stands today. */}
-                  {expanded &&
-                    p.initiatives.map((i, idx) => {
-                      const s = statusOf(i, today, shiftDays);
-                      const iStart = addDays(i.startDate, shiftDays);
-                      const iEnd = addDays(i.endDate, shiftDays);
-                      const iLeft = pct(iStart);
-                      const iWidth = Math.max(pct(iEnd) - iLeft, 1);
-                      return (
-                        <div
-                          key={i.id}
-                          data-testid="initiative-sub-bar"
-                          title={`${i.title} · ${formatDay(iStart)} → ${formatDay(iEnd, true)} · ${s.label} · ${i.progress.done}/${i.progress.total} epics`}
-                          className={`absolute flex items-center overflow-hidden whitespace-nowrap rounded-full border px-2.5 text-[10px] font-medium ${s.bar}`}
-                          style={{
-                            left: `${iLeft}%`,
-                            width: `${iWidth}%`,
-                            top: top + ROW_H + SUB_TOP + idx * (SUB_H + SUB_GAP),
-                            height: SUB_H,
-                          }}
-                        >
-                          <span className="truncate">{s.label}</span>
-                        </div>
-                      );
-                    })}
-                </div>
-              );
-            })}
+              {rows.map(({ project: p, expanded, top }) => {
+                const shiftDays = shiftOf(p.id);
+                const start = addDays(p.startDate, shiftDays);
+                const end = addDays(p.targetDate, shiftDays);
+                return (
+                  <div key={p.id}>
+                    <div
+                      title={`${p.name} · ${formatDay(start)} → ${formatDay(end, true)} · ${p.progress.pct}%`}
+                      onPointerDown={(e) => onBarPointerDown(e, p)}
+                      onPointerMove={onBarPointerMove}
+                      onPointerUp={() => onBarPointerUp(p)}
+                      className={`absolute flex cursor-grab touch-none select-none items-center overflow-hidden whitespace-nowrap rounded-full border-[1.5px] border-periwinkle bg-periwinkle-tint px-4 text-[13px] font-semibold text-periwinkle-deep active:cursor-grabbing ${
+                        shiftDays !== 0 ? "z-10 shadow-md" : ""
+                      }`}
+                      style={{
+                        left: cssX(start),
+                        width: cssW(start, end, 32, 1.5),
+                        top,
+                        height: ROW_H,
+                      }}
+                    >
+                      <div
+                        aria-hidden
+                        className="absolute inset-y-0 left-0 rounded-l-full bg-periwinkle/55"
+                        style={{ width: `${p.progress.pct}%` }}
+                      />
+                      {/* Zoomed in there is room for the name to travel with the
+                          bar, so a scrolled-away name column is no loss. */}
+                      {fits(start, end, 150) && (
+                        <span className="relative truncate font-serif">
+                          {p.name}
+                        </span>
+                      )}
+                      <span className="relative ml-auto pl-2 text-xs font-medium text-ink-soft">
+                        {p.progress.pct}%
+                      </span>
+                    </div>
 
-            {today && (
-              <div
-                className="absolute border-l-2 border-dashed border-clay"
-                style={{ left: `${pct(today)}%`, top: 22, bottom: 18 }}
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="-10 -10 20 20"
-                  aria-hidden
-                  className="absolute -left-2 -top-4"
+                    {/* One level down: the project's initiatives, each on its own
+                        thin line, coloured by where it stands today. */}
+                    {expanded &&
+                      p.initiatives.map((i, idx) => {
+                        const s = statusOf(i, today, shiftDays);
+                        const iStart = addDays(i.startDate, shiftDays);
+                        const iEnd = addDays(i.endDate, shiftDays);
+                        // What the bar can say at its current width: its title
+                        // when zoomed in far enough, otherwise its standing,
+                        // otherwise nothing but its colour (the tooltip and the
+                        // name column carry the rest).
+                        let label = s.label;
+                        if (zoomed)
+                          label = fits(iStart, iEnd, 110)
+                            ? i.title
+                            : fits(iStart, iEnd, 70)
+                              ? s.label
+                              : "";
+                        return (
+                          <div
+                            key={i.id}
+                            data-testid="initiative-sub-bar"
+                            title={`${i.title} · ${formatDay(iStart)} → ${formatDay(iEnd, true)} · ${s.label} · ${i.progress.done}/${i.progress.total} epics`}
+                            className={`absolute flex items-center overflow-hidden whitespace-nowrap rounded-full border px-2.5 text-[10px] font-medium ${s.bar}`}
+                            style={{
+                              left: cssX(iStart),
+                              width: cssW(iStart, iEnd, 26, 1),
+                              top: top + ROW_H + SUB_TOP + idx * (SUB_H + SUB_GAP),
+                              height: SUB_H,
+                            }}
+                          >
+                            <span className="truncate">{label}</span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                );
+              })}
+
+              {today && (
+                <div
+                  data-testid="today-line"
+                  className="absolute border-l-2 border-dashed border-clay"
+                  style={{ left: cssX(today), top: 22, bottom: 18 }}
                 >
-                  <polygon
-                    fill="var(--clay)"
-                    points="9,0 3.7,1.5 6.4,6.4 1.5,3.7 0,9 -1.5,3.7 -6.4,6.4 -3.7,1.5 -9,0 -3.7,-1.5 -6.4,-6.4 -1.5,-3.7 0,-9 1.5,-3.7 6.4,-6.4 3.7,-1.5"
-                  />
-                </svg>
-                <span className="absolute -left-4 top-full text-[10.5px] font-semibold tracking-wide text-clay">
-                  today
-                </span>
-              </div>
-            )}
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="-10 -10 20 20"
+                    aria-hidden
+                    className="absolute -left-2 -top-4"
+                  >
+                    <polygon
+                      fill="var(--clay)"
+                      points="9,0 3.7,1.5 6.4,6.4 1.5,3.7 0,9 -1.5,3.7 -6.4,6.4 -3.7,1.5 -9,0 -3.7,-1.5 -6.4,-6.4 -1.5,-3.7 0,-9 1.5,-3.7 6.4,-6.4 3.7,-1.5"
+                    />
+                  </svg>
+                  <span className="absolute -left-4 top-full text-[10.5px] font-semibold tracking-wide text-clay">
+                    today
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <p className="mt-2 text-xs text-ink-faint">
           Drag a bar to reschedule a whole project · click it to step inside ·
           open a project&rsquo;s arrow to see its initiatives
+          {zoomed && " · scroll sideways to travel through time"}
         </p>
       </div>
 

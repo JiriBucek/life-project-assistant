@@ -476,6 +476,47 @@ test("the Projects roadmap expands each project down to its initiatives", async 
   await expect(subBars).toHaveCount(1);
 });
 
+test("the roadmap can be held closer, down to weeks", async ({ page }) => {
+  await createProjectWithJourney(page, "Grow a garden", "Food and quiet.");
+  await addInitiative(page, "Prepare the beds");
+
+  await page.getByRole("navigation").getByRole("link", { name: "Projects" }).click();
+  await page
+    .getByRole("button", { name: "Show the initiatives of Grow a garden" })
+    .click();
+  const subBar = page.getByTestId("initiative-sub-bar").first();
+  const track = page.getByTestId("roadmap-track");
+  const scrolls = () =>
+    track.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+
+  // Fitted: months across the top, the whole road in view, and a two-week
+  // initiative is only wide enough to say where it stands.
+  await expect(page.getByText(/’2\d/).first()).toBeVisible(); // e.g. "Jul ’26"
+  await expect(subBar).toContainText("in progress");
+  expect(await scrolls()).toBe(false);
+
+  // Held to weeks: the axis is dated to the day, the track now runs past the
+  // screen, and the initiative has room for its own name.
+  await page.getByRole("button", { name: "Weeks", exact: true }).click();
+  await expect(page.getByText(/^[A-Z][a-z]{2} \d{1,2}$/).first()).toBeVisible();
+  await expect(subBar).toContainText("Prepare the beds");
+  expect(await scrolls()).toBe(true);
+  // Zooming in throws most of the road off-screen, but lands where the user
+  // actually is: today stays inside the visible window.
+  const todayInView = await track.evaluate((el) => {
+    const line = el.querySelector<HTMLElement>("[data-testid='today-line']");
+    if (!line) return false;
+    const x = line.offsetLeft - el.scrollLeft;
+    return x >= 0 && x <= el.clientWidth;
+  });
+  expect(todayInView).toBe(true);
+
+  // And back out again — nothing about the projects themselves changed.
+  await page.getByRole("button", { name: "Fit", exact: true }).click();
+  await expect(subBar).toContainText("in progress");
+  expect(await scrolls()).toBe(false);
+});
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 

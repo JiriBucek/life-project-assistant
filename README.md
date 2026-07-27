@@ -190,6 +190,10 @@ src/
   visual canvas connecting projects to values (drag a project's dot onto a value;
   click a line to disconnect).
 - **Projects** — name + a required "Why", linked to one or more values.
+- **Projects roadmap** — every journey on one shared axis, expandable down to its
+  initiatives, and held as close as you like: _Fit_ shows the whole road at once,
+  _Months_ and _Weeks_ give each day a real width and scroll sideways (landing on
+  today), so short initiatives stop being slivers.
 - **Project Journey** — a timeline of initiatives you can drag and resize, each
   broken into epics.
 - **Progress** — completing epics rolls up to initiative and project progress.
