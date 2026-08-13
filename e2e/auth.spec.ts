@@ -80,6 +80,35 @@ test("a wrong password is refused, and says nothing about who has an account", a
   expect(await failure.textContent()).toBe(realAccountMessage);
 });
 
+test("the login screen offers Google sign-in, politely declined while unconfigured", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  const google = page.getByRole("link", { name: "Continue with Google" });
+  await expect(google).toBeVisible();
+  await expect(google).toHaveAttribute("href", "/api/auth/google");
+
+  // The test server runs with Google switched off (see playwright.config.ts),
+  // so the button's whole journey is: through the proxy without a session
+  // cookie, into the start route, and straight back with a friendly notice.
+  await google.click();
+  await expect(page).toHaveURL(/\/login\?notice=google-off$/);
+  await expect(page.getByTestId("google-notice")).toContainText(
+    "isn't switched on here yet",
+  );
+});
+
+test("a broken Google callback lands back on the login screen, not an error page", async ({
+  page,
+}) => {
+  // No flow cookie, forged parameters — the strictest failure path.
+  await page.goto("/api/auth/google/callback?code=forged&state=forged");
+  await expect(page).toHaveURL(/\/login\?notice=google-failed$/);
+  await expect(page.getByTestId("google-notice")).toContainText(
+    "didn't finish this time",
+  );
+});
+
 test("two people never see each other's life map", async ({ page }) => {
   // Ana signs in and maps an area with a value.
   await signInAs(page, {

@@ -42,6 +42,10 @@ export default defineConfig({
     env: {
       DATABASE_URL: "file:./test.db",
       NEXT_DIST_DIR: ".next-e2e",
+      // Force Google sign-in into its "not switched on" state so the tests
+      // are deterministic even on a machine that has real keys configured.
+      GOOGLE_CLIENT_ID: "",
+      GOOGLE_CLIENT_SECRET: "",
     },
   },
 });

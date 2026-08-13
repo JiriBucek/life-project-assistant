@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { EllieAvatar } from "@/components/EllieAvatar";
+import { GoogleSignIn } from "@/components/GoogleSignIn";
 import { LoginForm } from "@/components/LoginForm";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -14,9 +15,17 @@ export const metadata: Metadata = {
  * The one page you can reach signed out. Calm and uncluttered, in the same
  * voice as the rest of the app: this is a welcome, not a gate.
  */
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ notice?: string }>;
+}) {
   // Already signed in? There's nothing to do here.
   if (await getCurrentUser()) redirect("/");
+
+  // A notice is how the Google round trip reports back — it can't render
+  // form state, so it says what happened through the URL instead.
+  const { notice } = await searchParams;
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-5 py-12">
@@ -35,6 +44,7 @@ export default async function LoginPage() {
 
         <div className="mt-8 rounded-2xl border border-line bg-paper-raised p-6 shadow-sm md:p-7">
           <LoginForm />
+          <GoogleSignIn notice={notice} />
         </div>
 
         <p className="mt-6 text-center text-sm text-ink-faint">

@@ -22,7 +22,12 @@ import { SESSION_COOKIE } from "@/lib/session-cookie";
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname !== "/login" && !request.cookies.has(SESSION_COOKIE)) {
+  // The auth routes are how a signed-out visitor *becomes* signed in — the
+  // Google round trip must be reachable without a session cookie.
+  const signedOutAllowed =
+    pathname === "/login" || pathname.startsWith("/api/auth/");
+
+  if (!signedOutAllowed && !request.cookies.has(SESSION_COOKIE)) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
