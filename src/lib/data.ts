@@ -39,7 +39,16 @@ export async function getLifeMap() {
         values: { select: { id: true, name: true, areaId: true } },
         initiatives: {
           orderBy: { startDay: "asc" },
-          include: { tasks: { select: { isComplete: true, updatedAt: true } } },
+          include: {
+            tasks: {
+              select: {
+                isComplete: true,
+                updatedAt: true,
+                createdAt: true,
+                completedAt: true,
+              },
+            },
+          },
         },
         reflections: {
           select: { createdAt: true },
@@ -92,6 +101,12 @@ export async function getLifeMap() {
       lastActivityAt,
       initiatives,
       progress: pct(done, tasks.length),
+      // Raw task dates for the per-area Progress chart: when each task entered
+      // the plan and when (if ever) it was closed.
+      taskDates: tasks.map((e) => ({
+        createdAt: e.createdAt,
+        completedAt: e.completedAt,
+      })),
     };
   });
 

@@ -514,6 +514,7 @@ function LifeMapInner({
         lastActivityAt: new Date(),
         initiatives: [], // a brand-new project has no journey yet
         progress: { total: 0, done: 0, pct: 0 },
+        taskDates: [],
       };
       mutate({ type: "createProject", project }, () =>
         actions.createProject({
@@ -682,6 +683,7 @@ function LifeMapInner({
         <SatisfactionStory
           open={storyOpen}
           areas={areas}
+          projects={projects}
           onClose={() => setStoryOpen(false)}
         />
 

@@ -352,7 +352,9 @@ export async function toggleTask(id: string, isComplete: boolean) {
   const task = await ifOwned(
     prisma.task.update({
       where: owned.task(id, user.id),
-      data: { isComplete },
+      // completedAt feeds the per-area Progress chart; reopening clears it so
+      // the task counts as open again from that month on.
+      data: { isComplete, completedAt: isComplete ? new Date() : null },
       include: { initiative: { select: { projectId: true } } },
     }),
   );

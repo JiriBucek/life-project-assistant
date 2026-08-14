@@ -554,7 +554,7 @@ test.describe("on a phone", () => {
   });
 });
 
-test("the satisfaction story charts rating history per life area", async ({
+test("the satisfaction story pairs satisfaction and progress per life area", async ({
   page,
 }) => {
   await page.goto("/");
@@ -566,8 +566,19 @@ test("the satisfaction story charts rating history per life area", async ({
   const story = page.getByTestId("satisfaction-story");
   await expect(story).toBeVisible();
   await expect(story).toContainText("How it’s changed");
-  await expect(story).toContainText("Wellness"); // legend + direct label
-  await expect(story).toContainText("TODAY");
+  // Two named charts per area, each explaining its own calculation.
+  await expect(story).toContainText("Wellness Satisfaction");
+  await expect(story).toContainText("How fulfilled do I feel in this area?");
+  await expect(story).toContainText("average of that month’s ratings");
+  await expect(story).toContainText("Wellness Progress");
+  await expect(story).toContainText(
+    "How much am I moving forward in this area?",
+  );
+  await expect(story).toContainText("share of tasks completed");
+  // No projects are connected yet, so progress shows its empty state and the
+  // trend chips wait for a second month of data.
+  await expect(story).toContainText("No tasks here yet");
+  await expect(story).toContainText("needs two months");
   await page.getByLabel("Close chart").click();
   await expect(story).toBeHidden();
 });

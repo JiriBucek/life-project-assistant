@@ -133,6 +133,9 @@ model Task {
   id           String     @id @default(cuid())
   title        String
   isComplete   Boolean    @default(false)
+  // When the task was (last) marked complete — powers the per-area Progress
+  // chart. Cleared if the task is reopened.
+  completedAt  DateTime?
   initiative   Initiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
   initiativeId String
   order        Int        @default(0)
