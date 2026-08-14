@@ -3,7 +3,7 @@
 A meaning-first life planning tool. Instead of starting with tasks, Ellie starts
 with your **life areas**, the **values** that matter in them, and the
 **projects** that serve those values — then turns each project into an adaptable
-**journey** of initiatives and epics.
+**journey** of initiatives and tasks.
 
 > Calm, intentional, spacious, supportive, non-judgmental — not performance-driven.
 
@@ -93,7 +93,7 @@ of the database can't be replayed as a login. Deleting the row signs that browse
 out immediately.
 
 **How your data stays yours.** `LifeArea` and `Project` are the only roots, so
-they carry the owner; values, initiatives, epics and reflections inherit it from
+they carry the owner; values, initiatives, tasks and reflections inherit it from
 their parent. Reads are scoped in `src/lib/data.ts`, which calls `requireUser()`
 itself — there is no unscoped way to ask for the data.
 
@@ -103,7 +103,7 @@ hand-written checks, the ownership test lives *inside the query*
 (`src/lib/scope.ts`):
 
 ```ts
-prisma.epic.update({
+prisma.task.update({
   where: { id, initiative: { project: { userId } } },  // wrong owner → no write
   data: { isComplete },
 })
@@ -138,7 +138,7 @@ The suite spins up its own dev server against an **isolated** `prisma/test.db`
 (it temporarily points `.env` at the test database and restores it afterwards),
 so it never touches your local `dev.db`. It verifies the full flow — create life
 areas, rate satisfaction, add values, create a project with a required "Why",
-connect it to values, open the journey, add initiatives + epics, complete an epic
+connect it to values, open the journey, add initiatives + tasks, complete a task
 to move progress, add a reflection — plus drag-to-reschedule on the timeline and
 that everything **persists across a reload**.
 
@@ -152,7 +152,7 @@ session directly (`e2e/auth.ts`) rather than driving the form each time.
 
 ```
 prisma/
-  schema.prisma          data model (User, Session, LifeArea→Value→Project→Initiative→Epic, Reflection)
+  schema.prisma          data model (User, Session, LifeArea→Value→Project→Initiative→Task, Reflection)
   sample-map.ts          the worked example, shared by the seed and the showcase
   seed.ts                seeds it into the local demo account
 scripts/
@@ -169,7 +169,7 @@ src/
     projects/[id]/       Project Journey
   components/
     lifemap/             React Flow canvas, nodes, project dialog
-    journey/             timeline, epics, reflections
+    journey/             timeline, tasks, reflections
     LoginForm.tsx        email + password form
     UserMenu.tsx         who you are, and sign out
     ui.tsx               shared primitives (satisfaction scale, inline edit, button)
@@ -195,13 +195,13 @@ src/
   _Months_ and _Weeks_ give each day a real width and scroll sideways (landing on
   today), so short initiatives stop being slivers.
 - **Project Journey** — a timeline of initiatives you can drag and resize, each
-  broken into epics.
-- **Progress** — completing epics rolls up to initiative and project progress.
+  broken into tasks.
+- **Progress** — completing tasks rolls up to initiative and project progress.
 - **Reflection** — capture _what changed / why / next step_ as plans evolve.
 - **Accounts** — sign in to your own private life map (invite-only, see above).
 
 Deliberately **out of scope**: AI, teams, habits, calendar, notifications,
-analytics, native mobile, and the Epic→Story→Task layer.
+analytics, native mobile, and a deeper Story/sub-task layer.
 
 ### The natural next step: Google sign-in
 

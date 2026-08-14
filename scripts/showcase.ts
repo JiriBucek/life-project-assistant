@@ -49,7 +49,7 @@ async function main() {
 
   if (existing > 0) {
     // Scoped to this account only. Deleting its areas and projects cascades to
-    // values, initiatives, epics and reflections.
+    // values, initiatives, tasks and reflections.
     await prisma.project.deleteMany({ where: { userId: user.id } });
     await prisma.lifeArea.deleteMany({ where: { userId: user.id } });
     console.log(`[showcase] cleared the previous map for ${email}.`);

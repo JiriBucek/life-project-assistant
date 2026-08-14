@@ -319,23 +319,23 @@ export async function deleteInitiative(id: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Epics (drive progress)
+// Tasks (drive progress)
 // ---------------------------------------------------------------------------
 
-export async function createEpic(initiativeId: string, title: string) {
+export async function createTask(initiativeId: string, title: string) {
   const user = await requireUser();
   const trimmed = title.trim();
   if (!trimmed) return;
-  // Sit after the current last epic. Based on the highest order rather than a
-  // count, so a new epic still lands at the end after deletions or a reorder
+  // Sit after the current last task. Based on the highest order rather than a
+  // count, so a new task still lands at the end after deletions or a reorder
   // (a count can collide with an order that is already taken).
-  const last = await prisma.epic.aggregate({
+  const last = await prisma.task.aggregate({
     where: { initiativeId },
     _max: { order: true },
   });
   // The connect proves the initiative is on one of the caller's projects.
-  const epic = await ifOwned(
-    prisma.epic.create({
+  const task = await ifOwned(
+    prisma.task.create({
       data: {
         initiative: { connect: owned.initiative(initiativeId, user.id) },
         title: trimmed,
@@ -344,54 +344,54 @@ export async function createEpic(initiativeId: string, title: string) {
       include: { initiative: { select: { projectId: true } } },
     }),
   );
-  if (epic) revalidatePath(`/projects/${epic.initiative.projectId}`);
+  if (task) revalidatePath(`/projects/${task.initiative.projectId}`);
 }
 
-export async function toggleEpic(id: string, isComplete: boolean) {
+export async function toggleTask(id: string, isComplete: boolean) {
   const user = await requireUser();
-  const epic = await ifOwned(
-    prisma.epic.update({
-      where: owned.epic(id, user.id),
+  const task = await ifOwned(
+    prisma.task.update({
+      where: owned.task(id, user.id),
       data: { isComplete },
       include: { initiative: { select: { projectId: true } } },
     }),
   );
-  if (epic) revalidatePath(`/projects/${epic.initiative.projectId}`);
+  if (task) revalidatePath(`/projects/${task.initiative.projectId}`);
 }
 
-export async function updateEpic(id: string, title: string) {
+export async function updateTask(id: string, title: string) {
   const user = await requireUser();
   const trimmed = title.trim();
   if (!trimmed) return;
-  const epic = await ifOwned(
-    prisma.epic.update({
-      where: owned.epic(id, user.id),
+  const task = await ifOwned(
+    prisma.task.update({
+      where: owned.task(id, user.id),
       data: { title: trimmed },
       include: { initiative: { select: { projectId: true } } },
     }),
   );
-  if (epic) revalidatePath(`/projects/${epic.initiative.projectId}`);
+  if (task) revalidatePath(`/projects/${task.initiative.projectId}`);
 }
 
-export async function deleteEpic(id: string) {
+export async function deleteTask(id: string) {
   const user = await requireUser();
-  const epic = await ifOwned(
-    prisma.epic.delete({
-      where: owned.epic(id, user.id),
+  const task = await ifOwned(
+    prisma.task.delete({
+      where: owned.task(id, user.id),
       include: { initiative: { select: { projectId: true } } },
     }),
   );
-  if (epic) revalidatePath(`/projects/${epic.initiative.projectId}`);
+  if (task) revalidatePath(`/projects/${task.initiative.projectId}`);
 }
 
 /**
- * Put an initiative's epics in the order the user just dragged them into —
+ * Put an initiative's tasks in the order the user just dragged them into —
  * which one comes first, which comes next. `orderedIds` is the full list as the
- * client sees it; anything the client didn't know about (an epic added in
+ * client sees it; anything the client didn't know about (a task added in
  * another tab meanwhile) keeps its relative place at the end, so a stale drag
- * can never make an epic disappear from the list.
+ * can never make a task disappear from the list.
  */
-export async function reorderEpics(initiativeId: string, orderedIds: string[]) {
+export async function reorderTasks(initiativeId: string, orderedIds: string[]) {
   const user = await requireUser();
   const initiative = await prisma.initiative.findFirst({
     where: owned.initiative(initiativeId, user.id),
@@ -399,12 +399,12 @@ export async function reorderEpics(initiativeId: string, orderedIds: string[]) {
   });
   if (!initiative) return;
 
-  const epics = await prisma.epic.findMany({
+  const tasks = await prisma.task.findMany({
     where: { initiativeId },
     select: { id: true },
     orderBy: { order: "asc" },
   });
-  const own = new Set(epics.map((e) => e.id));
+  const own = new Set(tasks.map((e) => e.id));
   const placed = new Set<string>();
   const finalOrder: string[] = [];
   for (const id of orderedIds) {
@@ -413,12 +413,12 @@ export async function reorderEpics(initiativeId: string, orderedIds: string[]) {
       finalOrder.push(id);
     }
   }
-  for (const e of epics) if (!placed.has(e.id)) finalOrder.push(e.id);
+  for (const e of tasks) if (!placed.has(e.id)) finalOrder.push(e.id);
   if (finalOrder.length === 0) return;
 
   await prisma.$transaction(
     finalOrder.map((id, index) =>
-      prisma.epic.update({ where: { id }, data: { order: index } }),
+      prisma.task.update({ where: { id }, data: { order: index } }),
     ),
   );
   revalidatePath(`/projects/${initiative.projectId}`);

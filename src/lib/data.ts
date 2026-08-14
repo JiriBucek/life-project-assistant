@@ -39,7 +39,7 @@ export async function getLifeMap() {
         values: { select: { id: true, name: true, areaId: true } },
         initiatives: {
           orderBy: { startDay: "asc" },
-          include: { epics: { select: { isComplete: true, updatedAt: true } } },
+          include: { tasks: { select: { isComplete: true, updatedAt: true } } },
         },
         reflections: {
           select: { createdAt: true },
@@ -51,8 +51,8 @@ export async function getLifeMap() {
   ]);
 
   const projectsWithProgress = projects.map((p) => {
-    const epics = p.initiatives.flatMap((i) => i.epics);
-    const done = epics.filter((e) => e.isComplete).length;
+    const tasks = p.initiatives.flatMap((i) => i.tasks);
+    const done = tasks.filter((e) => e.isComplete).length;
     // Which areas does this project touch (via its values)?
     const areaIds = Array.from(
       new Set(p.values.map((v) => v.areaId).filter(Boolean)),
@@ -63,19 +63,19 @@ export async function getLifeMap() {
       Math.max(
         p.updatedAt.getTime(),
         ...p.initiatives.map((i) => i.updatedAt.getTime()),
-        ...epics.map((e) => e.updatedAt.getTime()),
+        ...tasks.map((e) => e.updatedAt.getTime()),
         ...p.reflections.map((r) => r.createdAt.getTime()),
       ),
     );
     // One level down for the Projects roadmap: each initiative as a real date
     // window (startDay/duration are days from the project's Start Date) with its
-    // own epic roll-up, so a row can show what's finished and what's live now.
+    // own task roll-up, so a row can show what's finished and what's live now.
     const initiatives = p.initiatives.map((i) => ({
       id: i.id,
       title: i.title,
       startDate: addDays(p.startDate, i.startDay),
       endDate: addDays(p.startDate, i.startDay + i.duration),
-      progress: pct(i.epics.filter((e) => e.isComplete).length, i.epics.length),
+      progress: pct(i.tasks.filter((e) => e.isComplete).length, i.tasks.length),
     }));
 
     return {
@@ -91,7 +91,7 @@ export async function getLifeMap() {
       targetDate: p.targetDate,
       lastActivityAt,
       initiatives,
-      progress: pct(done, epics.length),
+      progress: pct(done, tasks.length),
     };
   });
 
@@ -139,7 +139,7 @@ export async function getProject(id: string) {
       },
       initiatives: {
         orderBy: { startDay: "asc" },
-        include: { epics: { orderBy: { order: "asc" } } },
+        include: { tasks: { orderBy: { order: "asc" } } },
       },
       // Chronological order (oldest first) — reads as the project's journey.
       reflections: { orderBy: { createdAt: "asc" } },
@@ -148,14 +148,14 @@ export async function getProject(id: string) {
   if (!project) return null;
 
   const initiatives = project.initiatives.map((i) => {
-    const done = i.epics.filter((e) => e.isComplete).length;
-    return { ...i, progress: pct(done, i.epics.length) };
+    const done = i.tasks.filter((e) => e.isComplete).length;
+    return { ...i, progress: pct(done, i.tasks.length) };
   });
 
-  const allEpics = project.initiatives.flatMap((i) => i.epics);
+  const allTasks = project.initiatives.flatMap((i) => i.tasks);
   const progress = pct(
-    allEpics.filter((e) => e.isComplete).length,
-    allEpics.length,
+    allTasks.filter((e) => e.isComplete).length,
+    allTasks.length,
   );
 
   return { ...project, initiatives, progress };

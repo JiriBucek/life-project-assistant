@@ -80,7 +80,7 @@ async function main() {
 
   console.log(
     `[backfill] ${areas.count} life area(s) and ${projects.count} project(s) now belong to ${email}. ` +
-      "Everything beneath them — values, initiatives, epics, reflections — follows its parent.",
+      "Everything beneath them — values, initiatives, tasks, reflections — follows its parent.",
   );
 }
 

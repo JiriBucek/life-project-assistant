@@ -14,7 +14,7 @@ import {
   toDateInputValue,
 } from "@/lib/timeline";
 import { Timeline } from "./Timeline";
-import { EpicList } from "./EpicList";
+import { TaskList } from "./TaskList";
 import { ReflectionPanel } from "./ReflectionPanel";
 
 export function ProjectJourney({
@@ -68,16 +68,16 @@ export function ProjectJourney({
     [project.initiatives],
   );
 
-  // Just the fields the epic list needs, so unrelated re-renders (typing an
+  // Just the fields the task list needs, so unrelated re-renders (typing an
   // initiative name, a transition settling) never disturb an in-flight drag.
-  const epicRows = useMemo(
+  const taskRows = useMemo(
     () =>
-      (selected?.epics ?? []).map((e) => ({
+      (selected?.tasks ?? []).map((e) => ({
         id: e.id,
         title: e.title,
         isComplete: e.isComplete,
       })),
-    [selected?.epics],
+    [selected?.tasks],
   );
 
   function bringInside() {
@@ -143,8 +143,8 @@ export function ProjectJourney({
           </div>
           <span className="text-sm text-ink-soft">
             {project.progress.total === 0
-              ? "No epics yet — add initiatives and epics below."
-              : `${project.progress.done} of ${project.progress.total} epics complete · ${project.progress.pct}%`}
+              ? "No tasks yet — add initiatives and tasks below."
+              : `${project.progress.done} of ${project.progress.total} tasks complete · ${project.progress.pct}%`}
           </span>
         </div>
       </div>
@@ -237,7 +237,7 @@ export function ProjectJourney({
         {project.initiatives.length === 0 ? (
           <div className="rounded-xl border border-dashed border-line-strong bg-paper-raised p-10 text-center text-ink-soft">
             Add your first initiative — a meaningful phase of this journey. Then
-            drag it along the timeline and break it into epics below.
+            drag it along the timeline and break it into tasks below.
           </div>
         ) : (
           <Timeline
@@ -250,7 +250,7 @@ export function ProjectJourney({
         )}
       </section>
 
-      {/* Detail: selected initiative's epics + reflections */}
+      {/* Detail: selected initiative's tasks + reflections */}
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
         <section>
           {selected ? (
@@ -290,16 +290,16 @@ export function ProjectJourney({
                 }
               />
 
-              {/* Epics, in the order the user has arranged them (drag to change) */}
-              <EpicList
+              {/* Tasks, in the order the user has arranged them (drag to change) */}
+              <TaskList
                 key={selected.id}
                 initiativeId={selected.id}
-                epics={epicRows}
+                tasks={taskRows}
               />
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-line-strong bg-paper-raised p-10 text-center text-ink-soft">
-              Select an initiative on the timeline to plan its epics.
+              Select an initiative on the timeline to plan its tasks.
             </div>
           )}
         </section>

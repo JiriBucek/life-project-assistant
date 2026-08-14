@@ -1,8 +1,8 @@
 // Ellie — Life Project Assistant
-// Hierarchy: LifeArea -> Value -> Project -> Initiative -> Epic, plus Reflection.
+// Hierarchy: LifeArea -> Value -> Project -> Initiative -> Task, plus Reflection.
 //
 // Multi-user: LifeArea and Project are the only roots, so they carry the owner.
-// Everything below them (Value, Initiative, Epic, Reflection, SatisfactionEntry)
+// Everything below them (Value, Initiative, Task, Reflection, SatisfactionEntry)
 // inherits ownership through its parent and is reached only via that parent —
 // see src/lib/scope.ts, which puts the ownership test in the query itself.
 
@@ -124,12 +124,12 @@ model Initiative {
   startDay  Int      @default(0)
   duration  Int      @default(14) // length in days (resizable)
   lane      Int      @default(0) // vertical row on the timeline
-  epics     Epic[]
+  tasks     Task[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Epic {
+model Task {
   id           String     @id @default(cuid())
   title        String
   isComplete   Boolean    @default(false)

@@ -46,14 +46,14 @@ export async function createUser(user: TestUser): Promise<string> {
 /**
  * Wipe every account and all their data — the "completely new install" the
  * acceptance spec starts from. Deleting users cascades to their life areas and
- * projects, and from there to values, initiatives, epics and reflections.
+ * projects, and from there to values, initiatives, tasks and reflections.
  */
 export async function resetDatabase(): Promise<void> {
   await prisma.user.deleteMany();
   // Anything left over would be pre-auth data with no owner; clear it too so a
   // failed run can't leak rows into the next one.
   await prisma.reflection.deleteMany();
-  await prisma.epic.deleteMany();
+  await prisma.task.deleteMany();
   await prisma.initiative.deleteMany();
   await prisma.project.deleteMany();
   await prisma.value.deleteMany();

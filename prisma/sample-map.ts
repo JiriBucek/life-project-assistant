@@ -17,14 +17,14 @@ import { addDays, todayUTC } from "../src/lib/timeline";
 
 type ValueSpec = string;
 
-type EpicSpec = { title: string; done?: boolean };
+type TaskSpec = { title: string; done?: boolean };
 
 type InitiativeSpec = {
   title: string;
   startDay: number;
   duration: number;
   lane: number;
-  epics: EpicSpec[];
+  tasks: TaskSpec[];
 };
 
 type AreaSpec = {
@@ -120,7 +120,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 0,
         duration: 42,
         lane: 0,
-        epics: [
+        tasks: [
           { title: "Run three easy times a week", done: true },
           { title: "Reach 5km without stopping", done: true },
           { title: "Reach 10km without stopping", done: true },
@@ -131,7 +131,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 40,
         duration: 49,
         lane: 1,
-        epics: [
+        tasks: [
           { title: "One interval session a week", done: true },
           { title: "Strength twice a week", done: true },
           { title: "Hold pace for 15km", done: false },
@@ -142,7 +142,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 95,
         duration: 40,
         lane: 0,
-        epics: [
+        tasks: [
           { title: "Long run up to 18km", done: false },
           { title: "Plan race-day logistics", done: false },
         ],
@@ -171,7 +171,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 0,
         duration: 35,
         lane: 0,
-        epics: [
+        tasks: [
           { title: "One room at a time — start with the hallway", done: true },
           { title: "Take three bags to the charity shop", done: true },
           { title: "Deal with the drawer of cables", done: false },
@@ -182,7 +182,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 30,
         duration: 45,
         lane: 1,
-        epics: [
+        tasks: [
           { title: "Decent lamp instead of the ceiling light", done: false },
           { title: "A chair that faces the window", done: false },
           { title: "Somewhere for the books to live", done: false },
@@ -207,7 +207,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 0,
         duration: 35,
         lane: 0,
-        epics: [
+        tasks: [
           { title: "Write down what it is in one sentence", done: true },
           { title: "Decide what is not in version one", done: true },
           { title: "Sketch the three screens that matter", done: false },
@@ -218,7 +218,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 30,
         duration: 56,
         lane: 1,
-        epics: [
+        tasks: [
           { title: "The one flow that has to feel good", done: false },
           { title: "Make it work on a phone", done: false },
         ],
@@ -228,7 +228,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 90,
         duration: 30,
         lane: 0,
-        epics: [
+        tasks: [
           { title: "Ask five friends to try it", done: false },
           { title: "Write down what confused them", done: false },
         ],
@@ -248,7 +248,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 0,
         duration: 60,
         lane: 0,
-        epics: [
+        tasks: [
           { title: "Twenty minutes before sleep, no phone", done: true },
           { title: "Keep a book in my bag", done: true },
         ],
@@ -258,7 +258,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 55,
         duration: 180,
         lane: 1,
-        epics: [
+        tasks: [
           { title: "Finish the one I abandoned in March", done: true },
           { title: "Two novels, two on work, two on anything", done: false },
           { title: "Write a line about each when I finish", done: false },
@@ -287,7 +287,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 0,
         duration: 70,
         lane: 0,
-        epics: [
+        tasks: [
           { title: "One evening a fortnight, in the calendar", done: true },
           { title: "Actually call instead of messaging", done: true },
           { title: "Say yes to the thing I'd normally skip", done: false },
@@ -298,7 +298,7 @@ const PROJECTS: ProjectSpec[] = [
         startDay: 60,
         duration: 90,
         lane: 1,
-        epics: [
+        tasks: [
           { title: "Write down who I miss", done: true },
           { title: "Get in touch with three of them", done: false },
         ],
@@ -377,10 +377,10 @@ export async function buildSampleMap(prisma: PrismaClient, userId: string) {
           startDay: initiative.startDay,
           duration: initiative.duration,
           lane: initiative.lane,
-          epics: {
-            create: initiative.epics.map((epic, order) => ({
-              title: epic.title,
-              isComplete: Boolean(epic.done),
+          tasks: {
+            create: initiative.tasks.map((task, order) => ({
+              title: task.title,
+              isComplete: Boolean(task.done),
               order,
             })),
           },

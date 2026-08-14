@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The epics inside one initiative — the steps that make it real, in the order
+ * The tasks inside one initiative — the steps that make it real, in the order
  * the user wants to walk them. Each row can be completed, renamed, deleted, and
  * dragged (by its grip) to change which step comes first.
  */
@@ -31,27 +31,27 @@ import {
 import * as actions from "@/lib/actions";
 import { InlineEdit } from "@/components/ui";
 
-export type EpicRowData = {
+export type TaskRowData = {
   id: string;
   title: string;
   isComplete: boolean;
 };
 
-export function EpicList({
+export function TaskList({
   initiativeId,
-  epics,
+  tasks,
 }: {
   initiativeId: string;
-  epics: EpicRowData[];
+  tasks: TaskRowData[];
 }) {
   const [, startTransition] = useTransition();
   const run = (fn: () => unknown) => startTransition(() => void fn());
-  const [newEpic, setNewEpic] = useState("");
+  const [newTask, setNewTask] = useState("");
 
   // The dragged order shows instantly and holds until the server action and its
   // revalidation land — React then falls back to the persisted order, so a
   // failed reorder simply undoes itself instead of lying about where things are.
-  const [order, setOrder] = useOptimistic(epics);
+  const [order, setOrder] = useOptimistic(tasks);
 
   // A grip only starts a drag after a few pixels of movement, so tapping it (or
   // clicking anything else in the row) still behaves like a plain click.
@@ -61,7 +61,7 @@ export function EpicList({
   );
 
   const label = (id: string | number) =>
-    order.find((e) => e.id === id)?.title ?? "This epic";
+    order.find((e) => e.id === id)?.title ?? "This task";
   const position = (id: string | number) =>
     `${order.findIndex((e) => e.id === id) + 1} of ${order.length}`;
 
@@ -87,7 +87,7 @@ export function EpicList({
     const next = arrayMove(order, from, to);
     startTransition(async () => {
       setOrder(next);
-      await actions.reorderEpics(
+      await actions.reorderTasks(
         initiativeId,
         next.map((e) => e.id),
       );
@@ -108,15 +108,15 @@ export function EpicList({
           strategy={verticalListSortingStrategy}
         >
           <div className="mt-4 space-y-1.5">
-            {order.map((epic) => (
-              <EpicRow
-                key={epic.id}
-                epic={epic}
+            {order.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
                 onToggle={() =>
-                  run(() => actions.toggleEpic(epic.id, !epic.isComplete))
+                  run(() => actions.toggleTask(task.id, !task.isComplete))
                 }
-                onRename={(title) => run(() => actions.updateEpic(epic.id, title))}
-                onDelete={() => run(() => actions.deleteEpic(epic.id))}
+                onRename={(title) => run(() => actions.updateTask(task.id, title))}
+                onDelete={() => run(() => actions.deleteTask(task.id))}
               />
             ))}
           </div>
@@ -124,15 +124,15 @@ export function EpicList({
       </DndContext>
 
       <input
-        value={newEpic}
-        onChange={(e) => setNewEpic(e.target.value)}
+        value={newTask}
+        onChange={(e) => setNewTask(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && newEpic.trim()) {
-            run(() => actions.createEpic(initiativeId, newEpic));
-            setNewEpic("");
+          if (e.key === "Enter" && newTask.trim()) {
+            run(() => actions.createTask(initiativeId, newTask));
+            setNewTask("");
           }
         }}
-        placeholder="+ add an epic"
+        placeholder="+ add a task"
         className="mt-2 w-full rounded-lg border border-dashed border-line-strong bg-transparent px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-sage focus:outline-none"
       />
 
@@ -145,13 +145,13 @@ export function EpicList({
   );
 }
 
-function EpicRow({
-  epic,
+function TaskRow({
+  task,
   onToggle,
   onRename,
   onDelete,
 }: {
-  epic: EpicRowData;
+  task: TaskRowData;
   onToggle: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
@@ -164,18 +164,18 @@ function EpicRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: epic.id });
+  } = useSortable({ id: task.id });
 
   return (
     <div
       ref={setNodeRef}
-      data-testid="epic-row"
+      data-testid="task-row"
       style={{
         // Vertical list — only the y offset matters, so no transform helper is needed.
         transform: transform ? `translate3d(0, ${transform.y}px, 0)` : undefined,
         transition: transition ?? undefined,
       }}
-      className={`group/epic flex items-center gap-2 rounded-lg px-1.5 py-1.5 ${
+      className={`group/task flex items-center gap-2 rounded-lg px-1.5 py-1.5 ${
         isDragging
           ? "relative z-10 bg-paper shadow-md ring-1 ring-sage/40"
           : "hover:bg-paper"
@@ -185,9 +185,9 @@ function EpicRow({
         ref={setActivatorNodeRef}
         {...attributes}
         {...listeners}
-        aria-label={`Reorder ${epic.title}`}
+        aria-label={`Reorder ${task.title}`}
         title="Drag to reorder"
-        className="shrink-0 cursor-grab touch-none rounded text-ink-faint opacity-40 transition hover:text-ink-soft focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sage group-hover/epic:opacity-100 active:cursor-grabbing"
+        className="shrink-0 cursor-grab touch-none rounded text-ink-faint opacity-40 transition hover:text-ink-soft focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sage group-hover/task:opacity-100 active:cursor-grabbing"
       >
         <GripIcon />
       </button>
@@ -195,26 +195,26 @@ function EpicRow({
       <button
         onClick={onToggle}
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition ${
-          epic.isComplete
+          task.isComplete
             ? "border-sage bg-sage text-white"
             : "border-line-strong hover:border-sage"
         }`}
         aria-label="Toggle complete"
       >
-        {epic.isComplete && <span className="text-xs leading-none">✓</span>}
+        {task.isComplete && <span className="text-xs leading-none">✓</span>}
       </button>
 
       <div
         className={`flex-1 text-sm ${
-          epic.isComplete ? "text-ink-faint line-through" : "text-ink"
+          task.isComplete ? "text-ink-faint line-through" : "text-ink"
         }`}
       >
-        <InlineEdit value={epic.title} onCommit={onRename} />
+        <InlineEdit value={task.title} onCommit={onRename} />
       </div>
 
       <button
         onClick={onDelete}
-        className="text-ink-faint opacity-0 transition hover:text-[#b15a4a] group-hover/epic:opacity-100"
+        className="text-ink-faint opacity-0 transition hover:text-[#b15a4a] group-hover/task:opacity-100"
       >
         ✕
       </button>

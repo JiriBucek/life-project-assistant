@@ -38,7 +38,7 @@ async function main() {
   });
 
   // Clean slate so re-seeding is idempotent — scoped to the demo account.
-  // Deleting its areas and projects cascades to values, initiatives, epics
+  // Deleting its areas and projects cascades to values, initiatives, tasks
   // and reflections, so those need no separate pass.
   await prisma.project.deleteMany({ where: { userId: user.id } });
   await prisma.lifeArea.deleteMany({ where: { userId: user.id } });

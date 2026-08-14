@@ -8,7 +8,7 @@
  *
  * Rather than 22 hand-written `if` checks (22 chances to forget one), the proof
  * lives inside the query: Prisma lets a `where` combine the unique `id` with a
- * filter across relations, so "update this epic" becomes "update this epic **if
+ * filter across relations, so "update this task" becomes "update this task **if
  * it hangs off one of my projects**" in a single statement. A wrong owner
  * matches nothing and the write simply never happens.
  *
@@ -16,7 +16,7 @@
  *
  *   User ─┬─ LifeArea ─┬─ Value ── (many-to-many) ── Project
  *         │            └─ SatisfactionEntry
- *         └─ Project ──┬─ Initiative ── Epic
+ *         └─ Project ──┬─ Initiative ── Task
  *                      └─ Reflection
  */
 
@@ -33,8 +33,8 @@ export const owned = {
   /** An initiative belongs to whoever owns its project. */
   initiative: (id: string, userId: string) => ({ id, project: { userId } }),
 
-  /** An epic is two hops from its owner: epic → initiative → project. */
-  epic: (id: string, userId: string) => ({
+  /** An task is two hops from its owner: task → initiative → project. */
+  task: (id: string, userId: string) => ({
     id,
     initiative: { project: { userId } },
   }),

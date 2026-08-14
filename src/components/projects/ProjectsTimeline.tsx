@@ -468,7 +468,7 @@ function Roadmap({ projects }: { projects: LifeMapProject[] }) {
                           <div
                             key={i.id}
                             data-testid="initiative-sub-bar"
-                            title={`${i.title} · ${formatDay(iStart)} → ${formatDay(iEnd, true)} · ${s.label} · ${i.progress.done}/${i.progress.total} epics`}
+                            title={`${i.title} · ${formatDay(iStart)} → ${formatDay(iEnd, true)} · ${s.label} · ${i.progress.done}/${i.progress.total} tasks`}
                             className={`absolute flex items-center overflow-hidden whitespace-nowrap rounded-full border px-2.5 text-[10px] font-medium ${s.bar}`}
                             style={{
                               left: cssX(iStart),

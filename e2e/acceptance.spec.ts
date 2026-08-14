@@ -4,7 +4,7 @@ import { prisma, resetDatabase, signInAs } from "./auth";
 /**
  * Mirrors the spec's Final Acceptance Test, driven through the real UI:
  *   Create 3 Life Areas → rate satisfaction → create Values → create a Project
- *   → connect to Values → open the Journey → add Initiatives → add Epics
+ *   → connect to Values → open the Journey → add Initiatives → add Tasks
  *   → mark progress → add a Reflection. No tutorial, all from an empty state.
  */
 
@@ -120,7 +120,7 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
   await expect(
     page.getByText("Ship my first album", { exact: true }).first(),
   ).toBeVisible();
-  await expect(page.getByText(/No epics yet/)).toBeVisible();
+  await expect(page.getByText(/No tasks yet/)).toBeVisible();
 
   // --- 6. Add Initiatives ---
   const initInput = page.getByPlaceholder("Name an initiative…");
@@ -132,22 +132,22 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
   await page.getByRole("button", { name: "+ Initiative" }).click();
   await expect(page.getByText("Record & mix").first()).toBeVisible();
 
-  // --- 7. Add Epics to the selected initiative ---
+  // --- 7. Add Tasks to the selected initiative ---
   // Select the first initiative on the timeline (target the bar itself — the
   // current-phase status chip echoes the title too).
   await page.getByTestId("initiative-bar").getByText("Write the songs").click();
-  const epicInput = page.getByPlaceholder("+ add an epic");
-  await epicInput.fill("Draft 10 song ideas");
-  await epicInput.press("Enter");
+  const taskInput = page.getByPlaceholder("+ add a task");
+  await taskInput.fill("Draft 10 song ideas");
+  await taskInput.press("Enter");
   await expect(page.getByText("Draft 10 song ideas")).toBeVisible();
 
-  await epicInput.fill("Pick the final 5");
-  await epicInput.press("Enter");
+  await taskInput.fill("Pick the final 5");
+  await taskInput.press("Enter");
   await expect(page.getByText("Pick the final 5")).toBeVisible();
 
-  // --- 8. Mark progress — completing an epic updates the rollups ---
+  // --- 8. Mark progress — completing a task updates the rollups ---
   await page.getByLabel("Toggle complete").first().click();
-  await expect(page.getByText(/1 of 2 epics complete · 50%/)).toBeVisible();
+  await expect(page.getByText(/1 of 2 tasks complete · 50%/)).toBeVisible();
 
   // --- 9. Add a Reflection (what / why / next) ---
   await page.getByRole("button", { name: "+ Reflect" }).click();
@@ -177,7 +177,7 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
 
   // Persistence: reload and confirm the journey survived.
   await page.reload();
-  await expect(page.getByText(/1 of 2 epics complete · 50%/)).toBeVisible();
+  await expect(page.getByText(/1 of 2 tasks complete · 50%/)).toBeVisible();
   await expect(page.getByText("Draft 10 song ideas")).toBeVisible();
 });
 
@@ -227,7 +227,7 @@ test("the timeline supports dragging an initiative to a later start", async ({
   expect(persisted!.x).toBeGreaterThan(before!.x + 40);
 });
 
-test("epics inside an initiative can be dragged into a new order", async ({
+test("tasks inside an initiative can be dragged into a new order", async ({
   page,
 }) => {
   await page.goto("/");
@@ -253,19 +253,19 @@ test("epics inside an initiative can be dragged into a new order", async ({
   await page.getByRole("button", { name: "+ Initiative" }).click();
   await page.getByTestId("initiative-bar").getByText("Prepare the site").click();
 
-  const epicInput = page.getByPlaceholder("+ add an epic");
+  const taskInput = page.getByPlaceholder("+ add a task");
   for (const title of ["Clear the ground", "Pour the base", "Order timber"]) {
-    await epicInput.fill(title);
-    await epicInput.press("Enter");
+    await taskInput.fill(title);
+    await taskInput.press("Enter");
     await expect(page.getByText(title)).toBeVisible();
   }
 
-  const rows = page.getByTestId("epic-row");
+  const rows = page.getByTestId("task-row");
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText("Clear the ground");
   await expect(rows.nth(2)).toContainText("Order timber");
 
-  // Drag the last epic up by its grip so it becomes the first step.
+  // Drag the last task up by its grip so it becomes the first step.
   const grip = rows.nth(2).getByRole("button", { name: "Reorder Order timber" });
   const from = (await grip.boundingBox())!;
   const to = (await rows.nth(0).boundingBox())!;
@@ -284,13 +284,13 @@ test("epics inside an initiative can be dragged into a new order", async ({
 
   // The new order is the persisted one.
   await page.reload();
-  const reloaded = page.getByTestId("epic-row");
+  const reloaded = page.getByTestId("task-row");
   await expect(reloaded.nth(0)).toContainText("Order timber");
   await expect(reloaded.nth(1)).toContainText("Clear the ground");
 
-  // An epic added afterwards still lands at the end of the reordered list.
-  await page.getByPlaceholder("+ add an epic").fill("Paint it");
-  await page.getByPlaceholder("+ add an epic").press("Enter");
+  // An task added afterwards still lands at the end of the reordered list.
+  await page.getByPlaceholder("+ add a task").fill("Paint it");
+  await page.getByPlaceholder("+ add a task").press("Enter");
   await expect(reloaded).toHaveCount(4);
   await expect(reloaded.nth(3)).toContainText("Paint it");
 });
@@ -430,13 +430,13 @@ test("the Projects roadmap expands each project down to its initiatives", async 
   await addInitiative(page, "Prepare the beds");
   await addInitiative(page, "Plant the seeds");
 
-  // Finish the first initiative's only epic, so it reads as complete.
+  // Finish the first initiative's only task, so it reads as complete.
   await page.getByTestId("initiative-bar").getByText("Prepare the beds").click();
-  const epicInput = page.getByPlaceholder("+ add an epic");
-  await epicInput.fill("Turn the soil");
-  await epicInput.press("Enter");
+  const taskInput = page.getByPlaceholder("+ add a task");
+  await taskInput.fill("Turn the soil");
+  await taskInput.press("Enter");
   await page.getByLabel("Toggle complete").first().click();
-  await expect(page.getByText(/1 of 1 epics complete/)).toBeVisible();
+  await expect(page.getByText(/1 of 1 tasks complete/)).toBeVisible();
 
   // A second journey, so expansion can be shown to be per project.
   await createProjectWithJourney(page, "Learn to sail", "Salt air and quiet.");
