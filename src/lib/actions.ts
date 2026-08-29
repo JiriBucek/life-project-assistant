@@ -300,6 +300,48 @@ export async function createInitiative(projectId: string, title: string) {
   await prisma.initiative.create({
     data: { projectId, title: trimmed, startDay, duration, lane },
   });
+  // A new phase means the journey is underway again — a completed project
+  // gains an unfulfilled phase, so any recorded harvest no longer holds.
+  await clearHarvest(projectId, user.id);
+  revalidatePath(`/projects/${projectId}`);
+}
+
+/**
+ * The classic journey shape, laid out in one gesture: Preparation to arrive,
+ * Execution for the heart of the work, Conclusion to land it — chained across
+ * the whole timeframe on one lane, ready to be reshaped. Only offered while
+ * the journey is still empty, so it can never disturb an existing plan.
+ */
+export async function scaffoldJourney(projectId: string) {
+  const user = await requireUser();
+  const project = await prisma.project.findFirst({
+    where: owned.project(projectId, user.id),
+    select: {
+      startDate: true,
+      targetDate: true,
+      initiatives: { select: { id: true }, take: 1 },
+    },
+  });
+  if (!project || project.initiatives.length > 0) return;
+  const total = durationDays(project.startDate, project.targetDate);
+  // Roughly a fifth to arrive, half to work, a quarter to land — every phase
+  // at least a day, and the middle absorbs whatever rounding leaves over.
+  const discovery = Math.max(1, Math.round(total * 0.2));
+  const conclusion = Math.max(1, Math.round(total * 0.25));
+  const execution = Math.max(1, total - discovery - conclusion);
+  await prisma.initiative.createMany({
+    data: [
+      { projectId, title: "Preparation", startDay: 0, duration: discovery, lane: 0 },
+      { projectId, title: "Execution", startDay: discovery, duration: execution, lane: 0 },
+      {
+        projectId,
+        title: "Conclusion",
+        startDay: discovery + execution,
+        duration: conclusion,
+        lane: 0,
+      },
+    ],
+  });
   revalidatePath(`/projects/${projectId}`);
 }
 
@@ -361,7 +403,11 @@ export async function createTask(initiativeId: string, title: string) {
       include: { initiative: { select: { projectId: true } } },
     }),
   );
-  if (task) revalidatePath(`/projects/${task.initiative.projectId}`);
+  if (task) {
+    // A brand-new task is open, so a completed journey is underway again.
+    await clearHarvest(task.initiative.projectId, user.id);
+    revalidatePath(`/projects/${task.initiative.projectId}`);
+  }
 }
 
 export async function toggleTask(id: string, isComplete: boolean) {
@@ -375,7 +421,25 @@ export async function toggleTask(id: string, isComplete: boolean) {
       include: { initiative: { select: { projectId: true } } },
     }),
   );
-  if (task) revalidatePath(`/projects/${task.initiative.projectId}`);
+  if (task) {
+    if (!isComplete) await clearHarvest(task.initiative.projectId, user.id);
+    revalidatePath(`/projects/${task.initiative.projectId}`);
+  }
+}
+
+/**
+ * Un-harvest: a journey that regains an open task is underway again.
+ * Completeness itself is derived from the tasks, so the rest of the app
+ * (portfolio counts, quiet/closing nudges, statistics) follows on its own —
+ * only the stored harvest needs clearing. The "Journey complete" note
+ * disappears, and the ritual offers itself anew when the project completes
+ * a second time.
+ */
+async function clearHarvest(projectId: string, userId: string) {
+  await prisma.project.updateMany({
+    where: { ...owned.project(projectId, userId), harvestedAt: { not: null } },
+    data: { harvestedAt: null, harvestBrought: null },
+  });
 }
 
 export async function updateTask(id: string, title: string) {

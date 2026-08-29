@@ -195,10 +195,7 @@ export function GuideButtons() {
         >
           <div className="pr-8">
             <h2 className="font-serif text-xl font-medium text-ink">
-              How LUMA works{" "}
-              <span aria-hidden className="ellie-twinkle text-sm text-sage">
-                ✦
-              </span>
+              How LUMA works?
             </h2>
             <p className="mt-0.5 text-xs tracking-wide text-ink-faint">
               Life Unfolds through Meaningful Action

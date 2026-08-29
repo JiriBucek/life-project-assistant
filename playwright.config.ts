@@ -1,4 +1,9 @@
+import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+
+// Real Chrome when the machine has it; Playwright's bundled Chromium
+// otherwise, so the suite still runs on machines without Chrome installed.
+const channel = existsSync("/opt/google/chrome/chrome") ? "chrome" : undefined;
 
 // E2E runs against an isolated dev server + SQLite test database so it never
 // touches local seed data. Isolation is pure environment: DATABASE_URL points
@@ -19,14 +24,14 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
-    channel: "chrome",
+    channel,
   },
   projects: [
     {
       name: "chrome",
       use: {
         ...devices["Desktop Chrome"],
-        channel: "chrome",
+        channel,
         // The default 1280×720 leaves too little canvas below the welcome
         // hero + always-open projects timeline; use a realistic laptop height.
         viewport: { width: 1280, height: 900 },

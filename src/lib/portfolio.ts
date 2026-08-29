@@ -11,12 +11,27 @@ type ProjectLike = {
   id: string;
   name: string;
   progress: { total: number; done: number };
+  initiatives: { progress: { total: number } }[];
   targetDate: Date;
   lastActivityAt: Date;
 };
 
-const isComplete = (p: ProjectLike) =>
-  p.progress.total > 0 && p.progress.done === p.progress.total;
+/**
+ * The one definition of a finished journey, shared by every surface (harvest,
+ * map badge, roadmap, this summary): every planned phase is fulfilled — each
+ * initiative holds at least one task, and every task everywhere is done.
+ * All-tasks-done alone is not enough: a phase still waiting to be broken into
+ * tasks means the journey is still underway.
+ */
+export const isProjectComplete = (p: {
+  progress: { total: number; done: number };
+  initiatives: { progress: { total: number } }[];
+}) =>
+  p.progress.total > 0 &&
+  p.progress.done === p.progress.total &&
+  p.initiatives.every((i) => i.progress.total > 0);
+
+const isComplete = isProjectComplete;
 
 export function computePortfolioSummary(
   areas: AreaLike[],

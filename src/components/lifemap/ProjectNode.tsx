@@ -4,14 +4,14 @@ import { Handle, Position, type NodeProps } from "reactflow";
 import { useRouter } from "next/navigation";
 import { useLifeMap } from "./context";
 import type { LifeMapProject } from "@/lib/data";
+import { isProjectComplete } from "@/lib/portfolio";
 
 export type ProjectNodeData = LifeMapProject;
 
 export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
   const h = useLifeMap();
   const router = useRouter();
-  const complete =
-    data.progress.total > 0 && data.progress.done === data.progress.total;
+  const complete = isProjectComplete(data);
 
   return (
     <div

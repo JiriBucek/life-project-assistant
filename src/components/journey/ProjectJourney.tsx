@@ -14,6 +14,7 @@ import {
   humanDuration,
   toDateInputValue,
 } from "@/lib/timeline";
+import { isProjectComplete } from "@/lib/portfolio";
 import { Timeline } from "./Timeline";
 import { TaskList } from "./TaskList";
 import { ReflectionPanel } from "./ReflectionPanel";
@@ -41,13 +42,12 @@ export function ProjectJourney({
     project.initiatives[0] ??
     null;
 
-  // The harvest: when the last task lands (or a completed, never-harvested
-  // journey is opened), offer the closing ritual. Once open it stays open on
+  // The harvest: when the last task of the last phase lands (or a completed,
+  // never-harvested journey is opened), offer the closing ritual. Every phase
+  // must be fulfilled — see isProjectComplete. Once open it stays open on
   // its own terms — recording the answer mid-ritual must not close it — and
   // "Not now" keeps it away for the rest of the visit.
-  const complete =
-    project.progress.total > 0 &&
-    project.progress.done === project.progress.total;
+  const complete = isProjectComplete(project);
   const [harvestOpen, setHarvestOpen] = useState(false);
   const [harvestDismissed, setHarvestDismissed] = useState(false);
   useEffect(() => {
@@ -158,7 +158,7 @@ export function ProjectJourney({
           </div>
           <span className="text-sm text-ink-soft">
             {project.progress.total === 0
-              ? "No tasks yet — add initiatives and tasks below."
+              ? "No tasks yet."
               : `${project.progress.done} of ${project.progress.total} tasks complete · ${project.progress.pct}%`}
           </span>
         </div>
@@ -176,7 +176,7 @@ export function ProjectJourney({
                   : "Journey complete — it didn’t bring what you hoped this time, and that ending counts too."}
               </div>
               <p className="mt-0.5 text-xs text-ink-soft">
-                Harvested on{" "}
+                Completed on{" "}
                 {new Date(project.harvestedAt).toLocaleDateString("en-US", {
                   month: "long",
                   day: "numeric",
@@ -222,14 +222,13 @@ export function ProjectJourney({
           </div>
         </div>
         <p className="mt-3 text-xs text-ink-faint">
-          The target is an intention, not a deadline — move it whenever life
-          changes. The timeline below adapts to fit.
+          The target is an intention, not a deadline. Say goodbye to pressure.
         </p>
       </section>
 
       {/* Timeline */}
       <section className="mt-7">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-serif text-xl font-medium text-ink">The journey</h2>
           <div className="flex items-center gap-2">
             <input
@@ -241,8 +240,8 @@ export function ProjectJourney({
                   setNewInitiative("");
                 }
               }}
-              placeholder="Name an initiative…"
-              className="w-52 rounded-full border border-line-strong bg-paper-raised px-3.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-sage focus:outline-none"
+              placeholder="Name a phase — Preparation, Execution, Conclusion…"
+              className="w-[24rem] rounded-full border border-line-strong bg-paper-raised px-3.5 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-sage focus:outline-none"
             />
             <Button
               disabled={!newInitiative.trim()}
@@ -253,7 +252,7 @@ export function ProjectJourney({
                 }
               }}
             >
-              + Initiative
+              + Phase
             </Button>
           </div>
         </div>
@@ -263,8 +262,8 @@ export function ProjectJourney({
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-clay/40 bg-clay-tint/50 px-4 py-3">
             <p className="text-sm text-[var(--attention-mid)]">
               {overdue.length === 1
-                ? "1 initiative now reaches past your target date."
-                : `${overdue.length} initiatives now reach past your target date.`}{" "}
+                ? "1 phase now reaches past your target date."
+                : `${overdue.length} phases now reach past your target date.`}{" "}
               <span className="text-[var(--attention-soft)]">
                 Extend the timeframe above, or tuck them back inside.
               </span>
@@ -276,9 +275,24 @@ export function ProjectJourney({
         )}
 
         {project.initiatives.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-line-strong bg-paper-raised p-10 text-center text-ink-soft">
-            Add your first initiative — a meaningful phase of this journey. Then
-            drag it along the timeline and break it into tasks below.
+          <div className="rounded-xl border border-dashed border-line-strong bg-paper-raised p-10 text-center">
+            <p className="font-serif text-lg text-ink">
+              How would you like this journey to unfold?
+            </p>
+            <p className="mx-auto mt-2 max-w-lg text-sm text-ink-soft">
+              Most journeys share one simple path:{" "}
+              <strong>Preparation</strong> (gather what you need) —{" "}
+              <strong>Execution</strong> — <strong>Conclusion</strong> (final
+              touches).
+            </p>
+            <p className="mx-auto mt-3 max-w-lg text-sm text-ink-soft">
+              Start simple or add more phases. Make it yours.
+            </p>
+            <div className="mt-5">
+              <Button onClick={() => run(() => actions.scaffoldJourney(project.id))}>
+                Lay out Preparation → Execution → Conclusion
+              </Button>
+            </div>
           </div>
         ) : (
           <Timeline
@@ -299,7 +313,7 @@ export function ProjectJourney({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
-                    Initiative
+                    Initiative — one phase of the journey
                   </div>
                   <InlineEdit
                     value={selected.title}
@@ -332,6 +346,13 @@ export function ProjectJourney({
               />
 
               {/* Tasks, in the order the user has arranged them (drag to change) */}
+              {taskRows.length === 0 && (
+                <p className="mt-4 text-xs text-ink-faint">
+                  The concrete steps live here — a call to make, a thing to
+                  buy, a page to write. Add them as tasks and check them off as
+                  this phase unfolds.
+                </p>
+              )}
               <TaskList
                 key={selected.id}
                 initiativeId={selected.id}
@@ -340,7 +361,7 @@ export function ProjectJourney({
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-line-strong bg-paper-raised p-10 text-center text-ink-soft">
-              Select an initiative on the timeline to plan its tasks.
+              Select a phase on the timeline to plan its tasks.
             </div>
           )}
         </section>
@@ -458,6 +479,15 @@ function DateField({
         value={value}
         min={min}
         max={max}
+        onClick={(e) => {
+          // Open the calendar wherever the field is clicked, not just on the
+          // picker icon — clicking a date segment normally only focuses it.
+          try {
+            e.currentTarget.showPicker();
+          } catch {
+            // Some browsers refuse (e.g. cross-origin iframe); typing still works.
+          }
+        }}
         onChange={(e) => {
           if (e.target.value) onCommit(e.target.value);
         }}

@@ -125,13 +125,13 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
   await expect(page.getByText(/No tasks yet/)).toBeVisible();
 
   // --- 6. Add Initiatives ---
-  const initInput = page.getByPlaceholder("Name an initiative…");
+  const initInput = page.getByPlaceholder("Name a phase — Preparation, Execution, Conclusion…");
   await initInput.fill("Write the songs");
-  await page.getByRole("button", { name: "+ Initiative" }).click();
+  await page.getByRole("button", { name: "+ Phase" }).click();
   await expect(page.getByText("Write the songs").first()).toBeVisible();
 
   await initInput.fill("Record & mix");
-  await page.getByRole("button", { name: "+ Initiative" }).click();
+  await page.getByRole("button", { name: "+ Phase" }).click();
   await expect(page.getByText("Record & mix").first()).toBeVisible();
 
   // --- 7. Add Tasks to the selected initiative ---
@@ -202,8 +202,8 @@ test("the timeline supports dragging an initiative to a later start", async ({
     .filter({ hasText: "Learn piano" });
   await projectNode.getByRole("button", { name: /Open journey/ }).click();
 
-  await page.getByPlaceholder("Name an initiative…").fill("Learn the basics");
-  await page.getByRole("button", { name: "+ Initiative" }).click();
+  await page.getByPlaceholder("Name a phase — Preparation, Execution, Conclusion…").fill("Learn the basics");
+  await page.getByRole("button", { name: "+ Phase" }).click();
 
   // Target the timeline bar specifically (the current-phase chip echoes the title).
   const bar = page.getByTestId("initiative-bar").getByText("Learn the basics");
@@ -251,8 +251,8 @@ test("tasks inside an initiative can be dragged into a new order", async ({
     .getByRole("button", { name: /Open journey/ })
     .click();
 
-  await page.getByPlaceholder("Name an initiative…").fill("Prepare the site");
-  await page.getByRole("button", { name: "+ Initiative" }).click();
+  await page.getByPlaceholder("Name a phase — Preparation, Execution, Conclusion…").fill("Prepare the site");
+  await page.getByRole("button", { name: "+ Phase" }).click();
   await page.getByTestId("initiative-bar").getByText("Prepare the site").click();
 
   const taskInput = page.getByPlaceholder("+ add a task");
@@ -266,6 +266,9 @@ test("tasks inside an initiative can be dragged into a new order", async ({
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0)).toContainText("Clear the ground");
   await expect(rows.nth(2)).toContainText("Order timber");
+  // Freshly added rows render immediately but rest faded (and inert) until
+  // the server confirms them — wait for every row to settle before dragging.
+  await expect(page.locator('[data-testid="task-row"].opacity-60')).toHaveCount(0);
 
   // Drag the last task up by its grip so it becomes the first step.
   const grip = rows.nth(2).getByRole("button", { name: "Reorder Order timber" });
@@ -418,8 +421,8 @@ async function createProjectWithJourney(page: Page, name: string, why: string) {
 }
 
 async function addInitiative(page: Page, title: string) {
-  await page.getByPlaceholder("Name an initiative…").fill(title);
-  await page.getByRole("button", { name: "+ Initiative" }).click();
+  await page.getByPlaceholder("Name a phase — Preparation, Execution, Conclusion…").fill(title);
+  await page.getByRole("button", { name: "+ Phase" }).click();
   await expect(
     page.getByTestId("initiative-bar").getByText(title),
   ).toBeVisible();
@@ -439,12 +442,9 @@ test("the Projects roadmap expands each project down to its initiatives", async 
   await taskInput.press("Enter");
   await page.getByLabel("Toggle complete").first().click();
   await expect(page.getByText(/1 of 1 tasks complete/)).toBeVisible();
-  // Completing every task opens the harvest ritual — decline it for now.
-  const harvest = page.getByTestId("harvest-dialog");
-  await expect(harvest).toBeVisible();
-  await expect(harvest).toContainText("This project journey is complete!");
-  await harvest.getByRole("button", { name: "Not now" }).click();
-  await expect(harvest).toBeHidden();
+  // "Plant the seeds" is still an unfulfilled phase — every task so far is
+  // done, but the journey is NOT complete, so the harvest ritual stays away.
+  await expect(page.getByTestId("harvest-dialog")).not.toBeVisible();
 
   // A second journey, so expansion can be shown to be per project.
   await createProjectWithJourney(page, "Learn to sail", "Salt air and quiet.");

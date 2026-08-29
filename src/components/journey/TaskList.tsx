@@ -6,7 +6,7 @@
  * dragged (by its grip) to change which step comes first.
  */
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -37,6 +37,35 @@ export type TaskRowData = {
   isComplete: boolean;
 };
 
+// Optimistic mirror of the rows — same pattern as the Life Map. Every mutation
+// is applied locally the moment it happens; the revalidated server data then
+// replaces the whole list (swapping temporary ids for real ones).
+type TaskAction =
+  | { type: "create"; task: TaskRowData }
+  | { type: "toggle"; id: string; isComplete: boolean }
+  | { type: "rename"; id: string; title: string }
+  | { type: "delete"; id: string }
+  | { type: "reorder"; next: TaskRowData[] };
+
+function taskReducer(state: TaskRowData[], action: TaskAction): TaskRowData[] {
+  switch (action.type) {
+    case "create":
+      return [...state, action.task];
+    case "toggle":
+      return state.map((t) =>
+        t.id === action.id ? { ...t, isComplete: action.isComplete } : t,
+      );
+    case "rename":
+      return state.map((t) =>
+        t.id === action.id ? { ...t, title: action.title } : t,
+      );
+    case "delete":
+      return state.filter((t) => t.id !== action.id);
+    case "reorder":
+      return action.next;
+  }
+}
+
 export function TaskList({
   initiativeId,
   tasks,
@@ -45,13 +74,28 @@ export function TaskList({
   tasks: TaskRowData[];
 }) {
   const [, startTransition] = useTransition();
-  const run = (fn: () => unknown) => startTransition(() => void fn());
   const [newTask, setNewTask] = useState("");
+  const [failed, setFailed] = useState(false);
 
-  // The dragged order shows instantly and holds until the server action and its
-  // revalidation land — React then falls back to the persisted order, so a
-  // failed reorder simply undoes itself instead of lying about where things are.
-  const [order, setOrder] = useOptimistic(tasks);
+  const [order, applyOptimistic] = useOptimistic(tasks, taskReducer);
+  // Counter for temporary client ids, replaced by real ones on revalidation.
+  const tmpId = useRef(0);
+
+  // Apply the change locally right away, then run the server action. If it
+  // throws, the transition settles without fresh data — the list snaps back to
+  // what the server last confirmed — and a note says so instead of the change
+  // just silently not happening.
+  const mutate = (action: TaskAction, fn: () => Promise<unknown>) =>
+    startTransition(async () => {
+      setFailed(false);
+      applyOptimistic(action);
+      try {
+        await fn();
+      } catch (err) {
+        console.error(err);
+        setFailed(true);
+      }
+    });
 
   // A grip only starts a drag after a few pixels of movement, so tapping it (or
   // clicking anything else in the row) still behaves like a plain click.
@@ -85,13 +129,12 @@ export function TaskList({
     const to = order.findIndex((e) => e.id === over.id);
     if (from === -1 || to === -1) return;
     const next = arrayMove(order, from, to);
-    startTransition(async () => {
-      setOrder(next);
-      await actions.reorderTasks(
+    mutate({ type: "reorder", next }, () =>
+      actions.reorderTasks(
         initiativeId,
         next.map((e) => e.id),
-      );
-    });
+      ),
+    );
   }
 
   return (
@@ -112,11 +155,26 @@ export function TaskList({
               <TaskRow
                 key={task.id}
                 task={task}
+                // A row still carrying its temporary id isn't saved yet — it
+                // rests (faded, inert) for the moment rather than accepting
+                // edits the server couldn't attach to anything.
+                saving={task.id.startsWith("tmp-")}
                 onToggle={() =>
-                  run(() => actions.toggleTask(task.id, !task.isComplete))
+                  mutate(
+                    { type: "toggle", id: task.id, isComplete: !task.isComplete },
+                    () => actions.toggleTask(task.id, !task.isComplete),
+                  )
                 }
-                onRename={(title) => run(() => actions.updateTask(task.id, title))}
-                onDelete={() => run(() => actions.deleteTask(task.id))}
+                onRename={(title) =>
+                  mutate({ type: "rename", id: task.id, title }, () =>
+                    actions.updateTask(task.id, title),
+                  )
+                }
+                onDelete={() =>
+                  mutate({ type: "delete", id: task.id }, () =>
+                    actions.deleteTask(task.id),
+                  )
+                }
               />
             ))}
           </div>
@@ -128,13 +186,27 @@ export function TaskList({
         onChange={(e) => setNewTask(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && newTask.trim()) {
-            run(() => actions.createTask(initiativeId, newTask));
+            const title = newTask.trim();
+            mutate(
+              {
+                type: "create",
+                task: { id: `tmp-${++tmpId.current}`, title, isComplete: false },
+              },
+              () => actions.createTask(initiativeId, title),
+            );
             setNewTask("");
           }
         }}
         placeholder="+ add a task"
         className="mt-2 w-full rounded-lg border border-dashed border-line-strong bg-transparent px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:border-sage focus:outline-none"
       />
+
+      {failed && (
+        <p role="status" className="mt-2 text-xs text-clay">
+          That change didn’t save — the connection may have hiccuped. It’s safe
+          to try again.
+        </p>
+      )}
 
       {order.length > 1 && (
         <p className="mt-2 text-xs text-ink-faint">
@@ -147,11 +219,13 @@ export function TaskList({
 
 function TaskRow({
   task,
+  saving,
   onToggle,
   onRename,
   onDelete,
 }: {
   task: TaskRowData;
+  saving?: boolean;
   onToggle: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
@@ -179,7 +253,7 @@ function TaskRow({
         isDragging
           ? "relative z-10 bg-paper shadow-md ring-1 ring-sage/40"
           : "hover:bg-paper"
-      }`}
+      }${saving ? " pointer-events-none opacity-60" : ""}`}
     >
       <button
         ref={setActivatorNodeRef}

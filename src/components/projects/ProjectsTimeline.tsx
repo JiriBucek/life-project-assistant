@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { LifeMapInitiative, LifeMapProject } from "@/lib/data";
 import * as actions from "@/lib/actions";
-import { CLOSING_WITHIN_DAYS } from "@/lib/portfolio";
+import { CLOSING_WITHIN_DAYS, isProjectComplete } from "@/lib/portfolio";
 import {
   addDays,
   buildRangeTicks,
@@ -149,8 +149,7 @@ function Roadmap({ projects }: { projects: LifeMapProject[] }) {
   const ticks = buildRangeTicks(rangeStart, rangeEnd, zoom === "week" ? "week" : "month");
 
   // ---- this page's own statistics: load and horizon, not life balance ----
-  const isComplete = (p: LifeMapProject) =>
-    p.progress.total > 0 && p.progress.done === p.progress.total;
+  const isComplete = isProjectComplete;
   const runningToday = today
     ? projects.filter(
         (p) =>

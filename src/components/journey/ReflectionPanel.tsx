@@ -41,7 +41,8 @@ export function ReflectionPanel({
         )}
       </div>
       <p className="mt-1 text-sm text-ink-soft">
-        Plans change — that’s progress too. Capture what shifted and why.
+        Use this as a journal — note what works well or requires improvement.
+        Later on, you will see some insights.
       </p>
 
       {open && (
