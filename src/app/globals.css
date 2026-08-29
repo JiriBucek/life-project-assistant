@@ -35,6 +35,23 @@
   --sky: #10069f; /* life areas — brand blue */
   --sky-deep: #10069f;
   --sky-tint: #e7e6f6;
+
+  /* Colors that must re-step for dark mode, held as tokens so the cosmos
+     skin can swap them in one place. */
+  --scrim: rgb(47 44 40 / 0.22); /* modal backdrop veil — always a dark fog */
+  --satisfaction-low: #93330a; /* the 1–3 end of the satisfaction ramp */
+  --attention-strong: #93330a; /* error text on clay-tint */
+  --attention-mid: #8a5238; /* softer attention text (overdue banner) */
+  --attention-soft: #a06a4f;
+  /* Chart series (validated for colorblind separation + contrast on the
+     light card surface; the cosmos block re-steps them for the dark one). */
+  --chart-1: #4038c0;
+  --chart-2: #c34811;
+  --chart-3: #1f8a70;
+  --chart-4: #7b8ce0;
+  --chart-5: #9a4d8f;
+  --chart-6: #8a7420;
+  --chart-overflow: #8a8378;
 }
 
 @theme inline {
@@ -124,18 +141,20 @@ body {
 }
 
 /* An inviting button: edges glow in a slow breath, and every few seconds a
-   soft citron shine sweeps across — curious, never loud. */
+   soft citron shine sweeps across — curious, never loud. Citron + sage, the
+   same shine language the map's glow layer speaks. Worn only until the guide
+   has been opened once. */
 @keyframes ellie-glow {
   0%,
   100% {
     box-shadow:
-      0 0 0 1px var(--periwinkle),
-      0 0 6px 1px rgba(185, 199, 248, 0.5);
+      0 0 0 1px var(--line-strong),
+      0 0 6px 1px rgba(240, 216, 0, 0.35);
   }
   50% {
     box-shadow:
-      0 0 0 1.5px var(--periwinkle-deep),
-      0 0 16px 4px rgba(185, 199, 248, 0.9);
+      0 0 0 1.5px var(--sage),
+      0 0 16px 4px rgba(240, 216, 0, 0.6);
   }
 }
 
@@ -204,4 +223,168 @@ body {
 /* React Flow tuning to keep the map soft */
 .react-flow__attribution {
   display: none;
+}
+
+/* The harvest's star burst: each star flies out from the dialog's centre on
+   its own path (--dx/--dy), spinning gently and fading as it goes. Runs once. */
+@keyframes harvest-star {
+  0% {
+    transform: translate(0, 0) scale(0.3) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(var(--s)) rotate(var(--rot));
+    opacity: 0;
+  }
+}
+
+.harvest-star {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  animation: harvest-star var(--dur) ease-out var(--delay) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .harvest-star {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Cosmos mode — a dark, starlit skin for the Life Map (prototype).
+
+   Everything below only re-tunes the design tokens under [data-cosmos], so
+   every component keeps reading the same variables it always has. Deep-space
+   surfaces, luminous inks, and accents lifted to stay readable on dark. */
+[data-cosmos] {
+  --paper: #0a0a22; /* deep space */
+  --paper-raised: #16163a;
+  --ink: #eceaf6;
+  --ink-soft: #b6b3cf;
+  --ink-faint: #7d7a9c;
+  --line: #2a2a4f;
+  --line-strong: #3c3c66;
+  --sage: #8f88f2;
+  --sage-deep: #bcb6ff;
+  --sage-tint: #232350;
+  --clay: #e8946a;
+  --clay-tint: #38222e;
+  --periwinkle: #8fa1e8;
+  --periwinkle-deep: #ccd6ff;
+  --periwinkle-tint: #232350;
+  --gold: #cdb43e;
+  --gold-deep: #ead98a;
+  --gold-tint: #2c2814;
+  --sky: #7d8cf0;
+  --sky-deep: #c3cbff;
+  --sky-tint: #1d1d48;
+
+  --scrim: rgb(0 0 0 / 0.55);
+  --satisfaction-low: #e06a4a;
+  --attention-strong: #f0a080;
+  --attention-mid: #e5b39c;
+  --attention-soft: #d3a68d;
+  /* Same six hues, re-stepped and validated against the dark card surface */
+  --chart-1: #7b6ff0;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #6b85e5;
+  --chart-5: #c05a9e;
+  --chart-6: #a89020;
+  --chart-overflow: #8a8fa8;
+}
+
+/* The canvas becomes the night sky: layered star sheets — some bright, some
+   barely-there — each tiling at a different rhythm so no repeat is visible. */
+[data-cosmos] .react-flow {
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(1.5px 1.5px at 22px 34px, rgba(255, 255, 255, 0.95) 50%, transparent 51%),
+    radial-gradient(1px 1px at 130px 90px, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(2px 2px at 210px 44px, rgba(240, 216, 0, 0.75) 50%, transparent 51%),
+    radial-gradient(1px 1px at 76px 158px, rgba(255, 255, 255, 0.3) 50%, transparent 51%),
+    radial-gradient(2px 2px at 168px 138px, rgba(185, 199, 248, 0.85) 50%, transparent 51%),
+    radial-gradient(1px 1px at 48px 108px, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 240px 190px, rgba(255, 255, 255, 0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 180px 230px, rgba(255, 255, 255, 0.25) 50%, transparent 51%),
+    radial-gradient(2.5px 2.5px at 90px 250px, rgba(255, 255, 255, 0.9) 50%, transparent 51%),
+    radial-gradient(1px 1px at 280px 120px, rgba(185, 199, 248, 0.45) 50%, transparent 51%);
+  background-size:
+    263px 217px,
+    331px 289px,
+    397px 353px,
+    283px 251px,
+    373px 307px,
+    311px 271px,
+    349px 331px,
+    293px 269px,
+    421px 379px,
+    359px 313px;
+}
+
+/* Two more star sheets breathe slowly and out of phase, so at any moment a
+   few stars are gently twinkling. Only opacity animates — cheap and calm. */
+[data-cosmos] .react-flow::before,
+[data-cosmos] .react-flow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+[data-cosmos] .react-flow::before {
+  background-image:
+    radial-gradient(1.5px 1.5px at 60px 60px, rgba(255, 255, 255, 0.9) 50%, transparent 51%),
+    radial-gradient(2px 2px at 220px 160px, rgba(240, 216, 0, 0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 150px 40px, rgba(255, 255, 255, 0.7) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 40px 200px, rgba(185, 199, 248, 0.8) 50%, transparent 51%);
+  background-size:
+    307px 257px,
+    389px 347px,
+    271px 233px,
+    353px 311px;
+  animation: cosmos-twinkle 4.8s ease-in-out infinite alternate;
+}
+
+[data-cosmos] .react-flow::after {
+  background-image:
+    radial-gradient(2px 2px at 110px 110px, rgba(255, 255, 255, 0.85) 50%, transparent 51%),
+    radial-gradient(1px 1px at 250px 60px, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 190px 220px, rgba(240, 216, 0, 0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 30px 130px, rgba(185, 199, 248, 0.65) 50%, transparent 51%);
+  background-size:
+    337px 281px,
+    283px 263px,
+    401px 367px,
+    317px 293px;
+  animation: cosmos-twinkle 6.4s ease-in-out 2.1s infinite alternate;
+}
+
+@keyframes cosmos-twinkle {
+  from {
+    opacity: 0.1;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-cosmos] .react-flow::before,
+  [data-cosmos] .react-flow::after {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* The dotted grid recedes so the stars carry the sky */
+[data-cosmos] .react-flow__background {
+  opacity: 0.3;
 }

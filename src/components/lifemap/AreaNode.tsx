@@ -6,18 +6,39 @@ import { InlineEdit, SatisfactionScale, satisfactionColor } from "@/components/u
 import { useLifeMap } from "./context";
 import type { LifeMapArea } from "@/lib/data";
 
-export type AreaNodeData = LifeMapArea;
+export type AreaNodeData = LifeMapArea & {
+  // The satisfaction layer (0–1 each): the card's own shine, and each
+  // value's, computed in LifeMap from ratings + recent task completions.
+  glow: number;
+  valueGlow: Record<string, number>;
+};
 
 export function AreaNode({ data }: NodeProps<AreaNodeData>) {
   const h = useLifeMap();
   const [adding, setAdding] = useState("");
+  const glow = data.glow ?? 0;
 
   return (
     <div
-      className="ellie-rise w-72 rounded-2xl border border-sky/40 shadow-[0_1px_3px_rgba(47,44,40,0.06)]"
+      className="ellie-rise w-72 rounded-2xl border border-sky/40"
       style={{
         backgroundColor:
           "color-mix(in srgb, var(--sky-tint) 55%, var(--paper-raised))",
+        // Additive halo: every card keeps its resting shadow; engagement
+        // widens and warms the aura. Fresh citrus yellow — complement of the
+        // card's indigo, kin to the brand citron (--gold-tint), and
+        // deliberately not the clay orange that means "needs attention"
+        // elsewhere in the app. Static — no animation, calm by design.
+        boxShadow: `0 1px 3px rgba(47,44,40,0.06), 0 0 ${(
+          4 +
+          10 * glow
+        ).toFixed(0)}px ${(1 + 3 * glow).toFixed(1)}px rgba(240, 216, 0, ${(
+          0.2 +
+          0.6 * glow
+        ).toFixed(3)}), 0 0 ${(8 + 60 * glow).toFixed(0)}px ${(
+          2 +
+          12 * glow
+        ).toFixed(1)}px rgba(240, 216, 0, ${(0.08 + 0.42 * glow).toFixed(3)})`,
       }}
     >
       {/* Accent edge tinted by satisfaction */}
@@ -72,10 +93,28 @@ export function AreaNode({ data }: NodeProps<AreaNodeData>) {
             Values
           </div>
           <div className="flex flex-col gap-1">
-            {data.values.map((v) => (
+            {data.values.map((v) => {
+              const vGlow = data.valueGlow?.[v.id] ?? 0;
+              return (
               <div
                 key={v.id}
                 className="group/val relative flex items-center rounded-full border border-gold/25 bg-gold-tint/80 py-1 pl-3 pr-3 text-sm text-gold-deep"
+                // A value shines when the projects serving it move — acted-on
+                // values literally light up. Resting chips stay as they are.
+                style={
+                  vGlow > 0
+                    ? {
+                        boxShadow: `0 0 ${(4 + 16 * vGlow).toFixed(0)}px ${(
+                          1 + 3 * vGlow
+                        ).toFixed(1)}px rgba(139, 122, 42, ${(
+                          0.15 + 0.4 * vGlow
+                        ).toFixed(3)})`,
+                        borderColor: `rgba(139, 122, 42, ${(
+                          0.25 + 0.45 * vGlow
+                        ).toFixed(3)})`,
+                      }
+                    : undefined
+                }
               >
                 <span aria-hidden className="mr-1.5 text-[10px] text-gold">
                   ✦
@@ -103,7 +142,8 @@ export function AreaNode({ data }: NodeProps<AreaNodeData>) {
                   style={{ right: -6 }}
                 />
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <input

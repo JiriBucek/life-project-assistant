@@ -54,7 +54,7 @@ export function GoogleSignIn({ notice }: { notice?: string }) {
           role="alert"
           aria-live="polite"
           data-testid="google-notice"
-          className="mt-4 rounded-xl bg-clay-tint px-3.5 py-2.5 text-sm text-[#93330a]"
+          className="mt-4 rounded-xl bg-clay-tint px-3.5 py-2.5 text-sm text-[var(--attention-strong)]"
         >
           {message}
         </p>

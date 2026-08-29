@@ -150,7 +150,13 @@ export async function getProject(id: string) {
     omit: { userId: true },
     include: {
       values: {
-        select: { id: true, name: true, area: { select: { name: true } } },
+        select: {
+          id: true,
+          name: true,
+          // The area's id + current satisfaction feed the harvest's
+          // "How does this area feel now?" re-rating step.
+          area: { select: { id: true, name: true, satisfaction: true } },
+        },
       },
       initiatives: {
         orderBy: { startDay: "asc" },

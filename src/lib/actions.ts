@@ -239,6 +239,23 @@ export async function updateProject(
   revalidatePath(`/projects/${id}`);
 }
 
+/**
+ * The harvest: the user has closed a completed journey and answered whether it
+ * brought some of its values into their life. Recording it stops the journey
+ * page from offering the ritual again.
+ */
+export async function recordHarvest(id: string, brought: boolean) {
+  const user = await requireUser();
+  await ifOwned(
+    prisma.project.update({
+      where: owned.project(id, user.id),
+      data: { harvestedAt: new Date(), harvestBrought: brought },
+    }),
+  );
+  revalidatePath("/");
+  revalidatePath(`/projects/${id}`);
+}
+
 export async function moveProject(id: string, x: number, y: number) {
   const user = await requireUser();
   await ifOwned(

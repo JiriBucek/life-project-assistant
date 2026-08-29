@@ -28,39 +28,63 @@ export function openJourneyGuide() {
 export function GuideButtons() {
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  // "Where to start?" folds its detail away so the welcome reads light;
+  // reopening the welcome always starts folded again.
+  const [whereOpen, setWhereOpen] = useState(false);
+  // The glow is an onboarding cue, not a permanent fixture: it invites until
+  // the guide has been opened once (per browser), then the button settles
+  // into the same calm pill as its Welcome sibling.
+  const [guideSeen, setGuideSeen] = useState(true);
 
   useEffect(() => {
-    const onOpen = () => setGuideOpen(true);
+    setGuideSeen(localStorage.getItem("guide-seen") === "1");
+    const onOpen = () => {
+      setGuideOpen(true);
+      setGuideSeen(true);
+      localStorage.setItem("guide-seen", "1");
+    };
     window.addEventListener(OPEN_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_EVENT, onOpen);
   }, []);
 
+  const openGuide = () => {
+    setGuideOpen(true);
+    setGuideSeen(true);
+    localStorage.setItem("guide-seen", "1");
+  };
+
   return (
     <>
-      {/* Ellie waves you in — tap her for the welcome */}
+      {/* Ellie waves you in — tap her for the welcome. Both doors share one
+          "exploration" pill: thin line border, raised paper, sage on hover. */}
       <button
-        onClick={() => setWelcomeOpen(true)}
+        onClick={() => {
+          setWelcomeOpen(true);
+          setWhereOpen(false);
+        }}
         aria-label="Welcome from Ellie"
-        className="flex h-9 items-center gap-1.5 rounded-full border border-line bg-paper-raised px-1 text-sm font-medium tracking-wide text-ink transition hover:border-sage hover:text-sage-deep md:h-auto md:py-1 md:pl-1.5 md:pr-3.5"
+        className="flex h-9 items-center gap-1.5 rounded-full border border-line bg-paper-raised px-1 text-sm font-medium text-ink transition hover:border-sage hover:text-sage-deep md:pl-1.5 md:pr-3.5"
       >
         <span aria-hidden className="block">
           <EllieAvatar className="w-7" />
         </span>
         <span className="hidden md:inline" aria-hidden>
-          WELCOME
+          Welcome
         </span>
       </button>
 
       <button
-        onClick={() => setGuideOpen(true)}
-        aria-label="How this works"
-        className="ellie-invite flex h-9 w-9 items-center justify-center rounded-full border border-periwinkle bg-paper-raised text-base font-medium text-ink transition hover:text-sage-deep md:h-auto md:w-auto md:px-4 md:py-1.5 md:text-sm md:tracking-wide"
+        onClick={openGuide}
+        aria-label="How it works?"
+        className={`flex h-9 w-9 items-center justify-center gap-1.5 rounded-full border border-line bg-paper-raised text-base font-medium text-ink transition hover:border-sage hover:text-sage-deep md:w-auto md:px-3.5 md:text-sm ${
+          guideSeen ? "" : "ellie-invite"
+        }`}
       >
         <span className="md:hidden" aria-hidden>
           ?
         </span>
         <span className="hidden md:inline" aria-hidden>
-          HOW THIS WORKS?
+          How it works?
         </span>
       </button>
 
@@ -68,13 +92,13 @@ export function GuideButtons() {
         <Overlay
           testid="welcome-note"
           closeLabel="Close welcome"
-          maxW="md:max-w-xl"
+          maxW="md:max-w-2xl"
           onClose={() => setWelcomeOpen(false)}
         >
-          <div className="flex items-start gap-5 pr-8">
+          <div className="flex items-start gap-6 pr-8">
             <div className="min-w-0 flex-1">
               <h2 className="font-serif text-2xl font-medium tracking-tight text-ink">
-                Hi, I’m glad you’re here!
+                Hey, I’m glad you’re here!
                 {/* The tiny constellation in place of the period — scattered,
                     twinkling out of step so it feels alive but calm. */}
                 <span
@@ -104,15 +128,57 @@ export function GuideButtons() {
                   </span>
                 </span>
               </h2>
-              <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-                This is where your thoughts come together and grow into
-                beautiful plans. Shape them with intention, connect them to
-                your values, and build a life that reflects what truly matters
-                to you.
+              {/* Short paragraphs, generous air — the welcome should feel
+                  like a breath, not a briefing. */}
+              <p className="mt-4 text-[15px] leading-7 text-ink-soft">
+                This is where your thoughts come together — and where your life
+                satisfaction grows with every small interaction.
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-                Start with a life area or create your first project. There is
-                no right place to begin—only the one that feels right to you.
+              <button
+                onClick={() => setWhereOpen((o) => !o)}
+                aria-expanded={whereOpen}
+                className="mt-4 flex items-center gap-1.5 text-[15px] font-bold leading-7 text-ink transition hover:text-sage-deep"
+              >
+                Where to start?
+                <svg
+                  viewBox="0 0 20 20"
+                  aria-hidden
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`h-4 w-4 transition-transform ${
+                    whereOpen ? "rotate-180" : ""
+                  }`}
+                >
+                  <path d="M5 7.5l5 5 5-5" />
+                </svg>
+              </button>
+              {whereOpen && (
+                <>
+                  <p className="text-[15px] leading-7 text-ink-soft">
+                    Which life area would you like to feel more satisfied with?
+                    What are your values within it — stability, freedom,
+                    independence, or something else?
+                  </p>
+                  <p className="mt-4 text-[15px] leading-7 text-ink-soft">
+                    Next, think of an idea that supports those values and add
+                    it as a project — LUMA will guide you through the rest.
+                  </p>
+                </>
+              )}
+              <p className="mt-4 text-[15px] leading-7 text-ink-soft">
+                The secret is simple — come back daily or weekly to reflect on
+                your changes. You’ll feel more satisfied just by doing that.
+                And if you ever get stuck, start from the beginning. Don’t put
+                pressure on yourself — have fun.
+              </p>
+              <p className="mt-6 text-[15px] font-medium leading-7 text-ink">
+                Start with one life area and create your first project.
+              </p>
+              <p className="text-[15px] font-medium leading-7 text-sage-deep">
+                See you on the main tab!
               </p>
             </div>
             <EllieAvatar className="ellie-rise w-20 shrink-0 sm:w-24" />
@@ -170,7 +236,7 @@ function Overlay({
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center md:p-4">
       <div
-        className="absolute inset-0 bg-ink/20 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-[var(--scrim)] backdrop-blur-[2px]"
         onClick={onClose}
       />
       <div

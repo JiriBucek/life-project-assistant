@@ -70,11 +70,13 @@ test("a new user can complete the full Life Map → Journey → Reflection flow"
     .click();
   await expect(areaCard(page, "Health").getByText("8/10")).toBeVisible();
 
-  // Portfolio summary reflects the lowest area under "Worth noticing".
+  // The Statistics page reflects the lowest area under "Worth noticing".
+  await page.goto("/statistics");
   await expect(page.getByText("Worth noticing")).toBeVisible();
   await expect(
     page.locator("text=Relationships").last(),
   ).toBeVisible();
+  await page.goto("/");
 
   // --- 3. Create Values ---
   await addValue(page, "Health", "Vitality");
@@ -437,6 +439,12 @@ test("the Projects roadmap expands each project down to its initiatives", async 
   await taskInput.press("Enter");
   await page.getByLabel("Toggle complete").first().click();
   await expect(page.getByText(/1 of 1 tasks complete/)).toBeVisible();
+  // Completing every task opens the harvest ritual — decline it for now.
+  const harvest = page.getByTestId("harvest-dialog");
+  await expect(harvest).toBeVisible();
+  await expect(harvest).toContainText("This project journey is complete!");
+  await harvest.getByRole("button", { name: "Not now" }).click();
+  await expect(harvest).toBeHidden();
 
   // A second journey, so expansion can be shown to be per project.
   await createProjectWithJourney(page, "Learn to sail", "Salt air and quiet.");
@@ -541,11 +549,11 @@ test.describe("on a phone", () => {
     const welcome = page.getByTestId("welcome-note");
     await expect(welcome).toBeVisible();
     await expect(welcome).toContainText("glad you’re here");
-    await expect(welcome).toContainText("no right place to begin");
+    await expect(welcome).toContainText("Start with one life area");
     await page.getByLabel("Close welcome").click();
     await expect(welcome).toBeHidden();
 
-    await page.getByRole("button", { name: "How this works" }).click();
+    await page.getByRole("button", { name: "How it works?" }).click();
     const guide = page.getByTestId("journey-guide");
     await expect(guide).toBeVisible();
     await expect(guide).toContainText("a wish appears");
@@ -554,7 +562,7 @@ test.describe("on a phone", () => {
   });
 });
 
-test("the satisfaction story pairs satisfaction and progress per life area", async ({
+test("the statistics page pairs satisfaction and progress per life area", async ({
   page,
 }) => {
   await page.goto("/");
@@ -562,30 +570,32 @@ test("the satisfaction story pairs satisfaction and progress per life area", asy
   await areaCard(page, "Wellness").getByLabel("Set satisfaction to 8").click();
   await expect(areaCard(page, "Wellness").getByText("8/10")).toBeVisible();
 
-  await page.getByRole("button", { name: /see how it’s changed/ }).click();
+  await page.goto("/statistics");
+  // The headline numbers sit above the story.
+  await expect(page.getByText("Your life, at a glance")).toBeVisible();
+  await expect(page.getByText("Life areas")).toBeVisible();
+  await expect(page.getByText("Active projects")).toBeVisible();
+  await expect(page.getByText("Average satisfaction")).toBeVisible();
+
   const story = page.getByTestId("satisfaction-story");
   await expect(story).toBeVisible();
   await expect(story).toContainText("How it’s changed");
-  // Two named charts per area, each explaining its own calculation.
+  // Two named charts per area, each led by the question it answers.
   await expect(story).toContainText("Wellness Satisfaction");
   await expect(story).toContainText("How fulfilled do I feel in this area?");
-  await expect(story).toContainText("average of that month’s ratings");
   await expect(story).toContainText("Wellness Progress");
   await expect(story).toContainText(
     "How much am I moving forward in this area?",
   );
-  await expect(story).toContainText("share of tasks completed");
   // No projects are connected yet, so progress shows its empty state and the
   // trend chips wait for a second month of data.
   await expect(story).toContainText("No tasks here yet");
   await expect(story).toContainText("needs two months");
-  await page.getByLabel("Close chart").click();
-  await expect(story).toBeHidden();
 });
 
 test("the journey guide explains the tool's concept", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "How this works" }).click();
+  await page.getByRole("button", { name: "How it works?" }).click();
   const guide = page.getByTestId("journey-guide");
   await expect(guide).toBeVisible();
   await expect(guide).toContainText("a wish appears");
@@ -609,8 +619,8 @@ test("Ellie's welcome is its own door, separate from the guide", async ({
   await page.getByRole("button", { name: "Welcome from Ellie" }).click();
   const welcome = page.getByTestId("welcome-note");
   await expect(welcome).toBeVisible();
-  await expect(welcome).toContainText("Hi, I’m glad you’re here!");
-  await expect(welcome).toContainText("no right place to begin");
+  await expect(welcome).toContainText("Hey, I’m glad you’re here!");
+  await expect(welcome).toContainText("Start with one life area");
   // The concept diagram is not mixed in — it lives behind its own button.
   await expect(welcome).not.toContainText("a wish appears");
   await page.getByLabel("Close welcome").click();

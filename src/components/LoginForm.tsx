@@ -63,7 +63,7 @@ export function LoginForm() {
           role="alert"
           aria-live="polite"
           data-testid="login-error"
-          className="rounded-xl bg-clay-tint px-3.5 py-2.5 text-sm text-[#93330a]"
+          className="rounded-xl bg-clay-tint px-3.5 py-2.5 text-sm text-[var(--attention-strong)]"
         >
           {state.error}
         </p>

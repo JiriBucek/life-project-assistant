@@ -100,6 +100,11 @@ model Project {
   // deadline; changing it is normal adaptation, never a failure.
   startDate    DateTime     @default(now())
   targetDate   DateTime     @default(now()) // Target Completion Date (always after startDate in practice)
+  // The harvest — the closing moment after every task is complete, when the
+  // tool asks what the journey gave back. Null = not yet harvested; the
+  // journey page offers the ritual while it stays null.
+  harvestedAt    DateTime?
+  harvestBrought Boolean? // the user's answer: did it bring some of it into your life?
   values       Value[]      @relation("ProjectValues")
   initiatives  Initiative[]
   reflections  Reflection[]

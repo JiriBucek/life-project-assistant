@@ -253,7 +253,7 @@ export function Timeline({
             >
               <div
                 className={`truncate text-sm font-medium ${
-                  outOfBounds ? "text-[#a85c44]" : "text-sage-deep"
+                  outOfBounds ? "text-[var(--attention-mid)]" : "text-sage-deep"
                 }`}
               >
                 {i.title}

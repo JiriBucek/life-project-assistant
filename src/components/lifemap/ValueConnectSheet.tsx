@@ -24,7 +24,7 @@ export function ValueConnectSheet({
   return (
     <div className="fixed inset-0 z-50">
       <div
-        className="absolute inset-0 bg-ink/20 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-[var(--scrim)] backdrop-blur-[2px]"
         onClick={onClose}
       />
       <div

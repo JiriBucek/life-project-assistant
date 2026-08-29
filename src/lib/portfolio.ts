@@ -6,8 +6,9 @@ export const STALE_AFTER_DAYS = 14;
 export const CLOSING_WITHIN_DAYS = 30;
 const DAY_MS = 86_400_000;
 
-type AreaLike = { name: string; satisfaction: number };
+type AreaLike = { id: string; name: string; satisfaction: number };
 type ProjectLike = {
+  id: string;
   name: string;
   progress: { total: number; done: number };
   targetDate: Date;
@@ -37,7 +38,11 @@ export function computePortfolioSummary(
       ? []
       : areas
           .filter((a) => a.satisfaction === minSatisfaction)
-          .map((a) => ({ name: a.name, satisfaction: a.satisfaction }));
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            satisfaction: a.satisfaction,
+          }));
 
   const now = Date.now();
 
@@ -49,7 +54,7 @@ export function computePortfolioSummary(
       (p) =>
         now - new Date(p.lastActivityAt).getTime() > STALE_AFTER_DAYS * DAY_MS,
     )
-    .map((p) => p.name);
+    .map((p) => ({ id: p.id, name: p.name }));
 
   // Projects whose Target Completion Date is coming up and aren't done yet.
   const closingProjects = projects
@@ -58,7 +63,7 @@ export function computePortfolioSummary(
       const untilTarget = new Date(p.targetDate).getTime() - now;
       return untilTarget >= 0 && untilTarget <= CLOSING_WITHIN_DAYS * DAY_MS;
     })
-    .map((p) => p.name);
+    .map((p) => ({ id: p.id, name: p.name }));
 
   return {
     areaCount: areas.length,

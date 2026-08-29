@@ -35,10 +35,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // suppressHydrationWarning: the inline script below may stamp
+    // `data-cosmos` on <html> before React hydrates.
     <html
       lang="en"
       className={`${sans.variable} ${serif.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Cosmos mode is chosen per browser; apply it before first paint so
+            a dark-mode visitor never sees a flash of daylight. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("cosmos-mode")==="1")document.documentElement.setAttribute("data-cosmos","")}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-paper text-ink">
         {children}
       </body>

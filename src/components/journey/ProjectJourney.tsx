@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import * as actions from "@/lib/actions";
 import { Button, InlineEdit } from "@/components/ui";
 import type { ProjectDetail } from "@/lib/data";
+import { HarvestDialog } from "./HarvestDialog";
 import {
   addDays,
   dayDiff,
@@ -39,6 +40,20 @@ export function ProjectJourney({
     project.initiatives.find((i) => i.id === selectedId) ??
     project.initiatives[0] ??
     null;
+
+  // The harvest: when the last task lands (or a completed, never-harvested
+  // journey is opened), offer the closing ritual. Once open it stays open on
+  // its own terms — recording the answer mid-ritual must not close it — and
+  // "Not now" keeps it away for the rest of the visit.
+  const complete =
+    project.progress.total > 0 &&
+    project.progress.done === project.progress.total;
+  const [harvestOpen, setHarvestOpen] = useState(false);
+  const [harvestDismissed, setHarvestDismissed] = useState(false);
+  useEffect(() => {
+    if (complete && !project.harvestedAt && !harvestDismissed)
+      setHarvestOpen(true);
+  }, [complete, project.harvestedAt, harvestDismissed]);
 
   // The project's timeframe, in the units the timeline math speaks (whole days
   // from the Start Date). Everything below derives from these two dates.
@@ -147,6 +162,32 @@ export function ProjectJourney({
               : `${project.progress.done} of ${project.progress.total} tasks complete · ${project.progress.pct}%`}
           </span>
         </div>
+
+        {/* The harvest, once gathered — the journey's closing status */}
+        {project.harvestedAt && (
+          <div className="mt-4 flex max-w-2xl items-start gap-3 rounded-xl border border-gold/40 bg-gold-tint/60 px-4 py-3">
+            <span aria-hidden className="mt-0.5 text-xl text-gold">
+              ✦
+            </span>
+            <div>
+              <div className="text-sm font-medium text-ink">
+                {project.harvestBrought
+                  ? "Journey complete — it brought some of its values into your life."
+                  : "Journey complete — it didn’t bring what you hoped this time, and that ending counts too."}
+              </div>
+              <p className="mt-0.5 text-xs text-ink-soft">
+                Harvested on{" "}
+                {new Date(project.harvestedAt).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                  timeZone: "UTC",
+                })}
+                .
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Timeframe — the journey's beginning, intended outcome, and where you are now */}
@@ -220,11 +261,11 @@ export function ProjectJourney({
         {/* Gentle nudge when phases reach past the Target — adapt, don't fail */}
         {overdue.length > 0 && (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-clay/40 bg-clay-tint/50 px-4 py-3">
-            <p className="text-sm text-[#8a5238]">
+            <p className="text-sm text-[var(--attention-mid)]">
               {overdue.length === 1
                 ? "1 initiative now reaches past your target date."
                 : `${overdue.length} initiatives now reach past your target date.`}{" "}
-              <span className="text-[#a06a4f]">
+              <span className="text-[var(--attention-soft)]">
                 Extend the timeframe above, or tuck them back inside.
               </span>
             </p>
@@ -318,6 +359,16 @@ export function ProjectJourney({
           ← {backLabel}
         </Link>
       </div>
+
+      {harvestOpen && (
+        <HarvestDialog
+          project={project}
+          onClose={() => {
+            setHarvestOpen(false);
+            setHarvestDismissed(true);
+          }}
+        />
+      )}
     </div>
   );
 }

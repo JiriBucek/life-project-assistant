@@ -55,7 +55,7 @@ export function ProjectDialog({
     // keyboard rises); a centered card from md up.
     <div className="fixed inset-0 z-50 flex items-center justify-center md:p-4">
       <div
-        className="absolute inset-0 bg-ink/20 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-[var(--scrim)] backdrop-blur-[2px]"
         onClick={onClose}
       />
       <div

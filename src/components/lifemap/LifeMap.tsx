@@ -23,10 +23,9 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 
-import type { LifeMapArea, LifeMapProject, PortfolioSummary as Summary } from "@/lib/data";
-import { computePortfolioSummary } from "@/lib/portfolio";
+import type { LifeMapArea, LifeMapProject } from "@/lib/data";
+import { computeGlow } from "@/lib/glow";
 import { openJourneyGuide } from "@/components/HowItWorks";
-import { SatisfactionStory } from "./SatisfactionStory";
 import { ValueConnectSheet } from "./ValueConnectSheet";
 import * as actions from "@/lib/actions";
 import { Button } from "@/components/ui";
@@ -34,7 +33,6 @@ import { LifeMapProvider, type LifeMapHandlers } from "./context";
 import { AreaNode } from "./AreaNode";
 import { ProjectNode } from "./ProjectNode";
 import { ProjectDialog, type ProjectDraft } from "./ProjectDialog";
-import { PortfolioSummary } from "./PortfolioSummary";
 
 const nodeTypes = { area: AreaNode, project: ProjectNode };
 
@@ -206,7 +204,7 @@ function lifeMapReducer(
 export function LifeMap(props: {
   areas: LifeMapArea[];
   projects: LifeMapProject[];
-  summary: Summary;
+  focusAreaId?: string;
 }) {
   return (
     <ReactFlowProvider>
@@ -218,15 +216,15 @@ export function LifeMap(props: {
 function LifeMapInner({
   areas: serverAreas,
   projects: serverProjects,
+  focusAreaId,
 }: {
   areas: LifeMapArea[];
   projects: LifeMapProject[];
-  summary: Summary;
+  focusAreaId?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [newAreaName, setNewAreaName] = useState("");
   const [areaPrompt, setAreaPrompt] = useState(false);
-  const [storyOpen, setStoryOpen] = useState(false);
   const [dialog, setDialog] = useState<{ open: boolean; draft?: ProjectDraft }>({
     open: false,
   });
@@ -252,13 +250,17 @@ function LifeMapInner({
     lifeMapReducer,
   );
   const { areas, projects } = optimistic;
-  const summary = useMemo(
-    () => computePortfolioSummary(areas, projects),
-    [areas, projects],
-  );
 
   // Counter for temporary client ids, replaced by real ones on revalidation.
   const tmpId = useRef(0);
+
+  // Arriving from a "Worth noticing" link (`/?focus=<areaId>`): open the map
+  // on that area instead of the whole-map fitView, then glide in. Captured
+  // once on arrival — not on every data revalidation. The card is w-72
+  // (288px); the offsets aim at roughly its middle.
+  const focusArea = useRef(
+    focusAreaId ? serverAreas.find((a) => a.id === focusAreaId) : undefined,
+  ).current;
 
   // Apply the optimistic action immediately, then run the server mutation. If
   // the action throws, the transition settles without a new base and the
@@ -336,13 +338,21 @@ function LifeMapInner({
     [pending, connectingFromValue, projects, mutate],
   );
 
-  // Build React Flow nodes from server data.
+  // Build React Flow nodes from server data. Each area carries its glow (the
+  // satisfaction layer) plus its values' glow, so the card can shine.
   const buildNodes = useCallback((): Node[] => {
+    const { areaGlow, valueGlow } = computeGlow(areas, projects);
     const areaNodes: Node[] = areas.map((a) => ({
       id: a.id,
       type: "area",
       position: { x: a.x, y: a.y },
-      data: a,
+      data: {
+        ...a,
+        glow: areaGlow.get(a.id) ?? 0,
+        valueGlow: Object.fromEntries(
+          a.values.map((v) => [v.id, valueGlow.get(v.id) ?? 0]),
+        ),
+      },
       draggable: true,
     }));
     const projectNodes: Node[] = projects.map((p) => ({
@@ -555,7 +565,7 @@ function LifeMapInner({
     <LifeMapProvider value={handlers}>
       <div className="relative flex-1">
         {/* Top overlay band — shares the header/hero content container so the
-            toolbar and summary panel align with the welcome text's edges. */}
+            toolbar aligns with the welcome text's edges. */}
         <div className="pointer-events-none absolute inset-x-0 top-4 z-10">
           <div className="mx-auto flex w-full max-w-[1400px] items-start justify-between px-6">
             {/* Floating toolbar — actions first, the map key beneath */}
@@ -615,11 +625,6 @@ function LifeMapInner({
                 </span>
               </div>
             </div>
-
-            <PortfolioSummary
-              summary={summary}
-              onShowStory={() => setStoryOpen(true)}
-            />
           </div>
         </div>
 
@@ -653,8 +658,15 @@ function LifeMapInner({
           onConnectEnd={onConnectEnd}
           connectionMode={ConnectionMode.Loose}
           onEdgeClick={onEdgeClick}
-          fitView
+          fitView={!focusArea}
           fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
+          onInit={(instance) => {
+            if (focusArea)
+              instance.setCenter(focusArea.x + 144, focusArea.y + 110, {
+                zoom: 1,
+                duration: 700,
+              });
+          }}
           minZoom={0.3}
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
@@ -678,13 +690,6 @@ function LifeMapInner({
           initial={dialog.draft}
           onClose={() => setDialog({ open: false })}
           onSubmit={submitDialog}
-        />
-
-        <SatisfactionStory
-          open={storyOpen}
-          areas={areas}
-          projects={projects}
-          onClose={() => setStoryOpen(false)}
         />
 
         {sheetValueId &&

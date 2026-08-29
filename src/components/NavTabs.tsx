@@ -4,14 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * The two places you can be: the Life Map and the Projects timeline. The same
- * two destinations render as tabs in the desktop header and as a thumb-height
- * bottom bar on phones — identical order and labels, so navigation never
- * moves around on the user.
+ * The three places you can be: the Life Map, the Projects timeline, and the
+ * Statistics page. The same destinations render as tabs in the desktop header
+ * and as a thumb-height bottom bar on phones — identical order and labels, so
+ * navigation never moves around on the user.
  */
 const TABS = [
   { href: "/", label: "Life Map", Glyph: MapGlyph },
   { href: "/projects", label: "Projects", Glyph: TimelineGlyph },
+  { href: "/statistics", label: "Statistics", Glyph: StatsGlyph },
 ] as const;
 
 // "/" only matches exactly; "/projects" also claims its detail pages, so the
@@ -97,6 +98,31 @@ function MapGlyph({ className = "" }: { className?: string }) {
       <circle cx="15.5" cy="15" r="1.5" />
       <path d="M6.6 12.9 12.9 7.1" />
       <path d="M7.2 14.6 13.9 14.9" />
+    </svg>
+  );
+}
+
+/** A rising line with an end-dot — the story the statistics tell. */
+function StatsGlyph({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className={className}
+      aria-hidden
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 15.5 8 10.5l3.5 2.5 5.5-7" />
+      <circle
+        cx="17"
+        cy="6"
+        r="1.7"
+        fill="currentColor"
+        stroke="none"
+      />
     </svg>
   );
 }

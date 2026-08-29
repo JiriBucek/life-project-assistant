@@ -41,7 +41,7 @@ export function SatisfactionScale({
 export function satisfactionColor(v: number): string {
   if (v >= 7) return "var(--sage)";
   if (v >= 4) return "var(--clay)";
-  return "#93330a";
+  return "var(--satisfaction-low)";
 }
 
 /** Click-to-edit text that commits on blur / Enter. */

@@ -10,14 +10,28 @@ export type ProjectNodeData = LifeMapProject;
 export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
   const h = useLifeMap();
   const router = useRouter();
+  const complete =
+    data.progress.total > 0 && data.progress.done === data.progress.total;
 
   return (
     <div
       className={`ellie-rise group/proj relative w-80 rounded-lg border bg-paper-raised shadow-[0_2px_6px_rgba(47,44,40,0.09)] transition-all ${
         h.connecting
           ? "border-gold ring-2 ring-gold/40"
-          : "border-periwinkle"
+          : complete
+            ? "border-gold/60"
+            : "border-periwinkle"
       }`}
+      // A finished journey shines at full strength — the same citrus light the
+      // life areas earn, turned all the way up. Static, like every glow here.
+      style={
+        complete
+          ? {
+              boxShadow:
+                "0 2px 6px rgba(47,44,40,0.09), 0 0 14px 4px rgba(240, 216, 0, 0.8), 0 0 68px 14px rgba(240, 216, 0, 0.5)",
+            }
+          : undefined
+      }
     >
       {/* Periwinkle spine — the project silhouette: crisp card, strong left edge */}
       <div
@@ -38,6 +52,11 @@ export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-periwinkle-deep">
             <span aria-hidden>▸</span> Project
+            {complete && (
+              <span className="ml-1 flex items-center gap-1 rounded-full bg-gold-tint px-2 py-0.5 text-[10px] font-semibold text-gold-deep">
+                ✦ Complete
+              </span>
+            )}
           </div>
           {/* Hover-revealed on mouse; always visible on touch (no hover there) */}
           <div className="flex items-center gap-2 opacity-0 transition group-hover/proj:opacity-100 pointer-coarse:opacity-100">
