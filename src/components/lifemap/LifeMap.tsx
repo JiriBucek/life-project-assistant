@@ -256,8 +256,8 @@ function LifeMapInner({
 
   // Arriving from a "Worth noticing" link (`/?focus=<areaId>`): open the map
   // on that area instead of the whole-map fitView, then glide in. Captured
-  // once on arrival — not on every data revalidation. The card is w-72
-  // (288px); the offsets aim at roughly its middle.
+  // once on arrival — not on every data revalidation. The card is w-[22rem]
+  // (352px); the offsets aim at roughly its middle.
   const focusArea = useRef(
     focusAreaId ? serverAreas.find((a) => a.id === focusAreaId) : undefined,
   ).current;
@@ -662,7 +662,7 @@ function LifeMapInner({
           fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
           onInit={(instance) => {
             if (focusArea)
-              instance.setCenter(focusArea.x + 144, focusArea.y + 110, {
+              instance.setCenter(focusArea.x + 176, focusArea.y + 110, {
                 zoom: 1,
                 duration: 700,
               });

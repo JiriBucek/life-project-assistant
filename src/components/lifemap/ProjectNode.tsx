@@ -15,7 +15,7 @@ export function ProjectNode({ data }: NodeProps<ProjectNodeData>) {
 
   return (
     <div
-      className={`ellie-rise group/proj relative w-80 rounded-lg border bg-paper-raised shadow-[0_2px_6px_rgba(47,44,40,0.09)] transition-all ${
+      className={`ellie-rise group/proj relative w-72 rounded-lg border bg-paper-raised shadow-[0_2px_6px_rgba(47,44,40,0.09)] transition-all ${
         h.connecting
           ? "border-gold ring-2 ring-gold/40"
           : complete

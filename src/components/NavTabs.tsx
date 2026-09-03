@@ -4,15 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * The three places you can be: the Life Map, the Projects timeline, and the
- * Statistics page. The same destinations render as tabs in the desktop header
- * and as a thumb-height bottom bar on phones — identical order and labels, so
- * navigation never moves around on the user.
+ * The four places you can be: the Life Map, the Projects timeline, the
+ * Statistics page, and the community Forum. The same destinations render as
+ * tabs in the desktop header and as a thumb-height bottom bar on phones —
+ * identical order and labels, so navigation never moves around on the user.
  */
 const TABS = [
   { href: "/", label: "Life Map", Glyph: MapGlyph },
   { href: "/projects", label: "Projects", Glyph: TimelineGlyph },
   { href: "/statistics", label: "Statistics", Glyph: StatsGlyph },
+  { href: "/community", label: "Community", Glyph: ForumGlyph },
 ] as const;
 
 // "/" only matches exactly; "/projects" also claims its detail pages, so the
@@ -123,6 +124,25 @@ function StatsGlyph({ className = "" }: { className?: string }) {
         fill="currentColor"
         stroke="none"
       />
+    </svg>
+  );
+}
+
+/** A speech bubble with a little star — the community talking. */
+function ForumGlyph({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className={className}
+      aria-hidden
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3.5 5.5 A2 2 0 0 1 5.5 3.5 H14.5 A2 2 0 0 1 16.5 5.5 V11 A2 2 0 0 1 14.5 13 H8.5 L5 16 V13 H5.5 A2 2 0 0 1 3.5 11 Z" />
+      <path d="M10 6.2 l0.9 1.7 1.8 0.35 -1.3 1.3 0.3 1.85 -1.7 -0.9 -1.7 0.9 0.3 -1.85 -1.3 -1.3 1.8 -0.35 Z" fill="currentColor" stroke="none" />
     </svg>
   );
 }

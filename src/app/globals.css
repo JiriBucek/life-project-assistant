@@ -225,6 +225,67 @@ body {
   display: none;
 }
 
+/* ---------------------------------------------------------------------------
+   The daylight sky — the map's canvas by day. A pale dawn-blue gradient
+   (cool, so the warm cards sit forward and the citrus glow reads as light),
+   a handful of barely-there daytime stars, and a fine film grain so the
+   gradient has texture instead of plastic flatness. All static — one tiled
+   noise image and two star sheets, no filters, no animation.
+   Cosmos mode replaces all of this with its own night sky below. */
+:root:not([data-cosmos]) .react-flow {
+  /* Golden hour: periwinkle overhead melting into a warm peach horizon —
+     the sky itself carries the app's warm/cool language. One gradient,
+     no radial layers (a soft-edged radial is what banded into a visible
+     line on some screens). */
+  background-color: #a8aedd;
+  background-image: linear-gradient(
+    180deg,
+    #8ba0d9 0%,
+    #b9b9dd 55%,
+    #e3c9b3 100%
+  );
+}
+
+:root:not([data-cosmos]) .react-flow::before,
+:root:not([data-cosmos]) .react-flow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Film grain: tiled fractal noise, faint enough to feel like paper */
+:root:not([data-cosmos]) .react-flow::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  opacity: 0.07;
+}
+
+/* Daytime stars — very rare, half-dissolved in the light: a few bright
+   specks and a few soft periwinkle ones, tiling at large prime-ish sizes
+   so no repetition is visible */
+:root:not([data-cosmos]) .react-flow::after {
+  background-image:
+    radial-gradient(1.8px 1.8px at 61px 74px, rgba(255, 255, 255, 1) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 310px 187px, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1.8px 1.8px at 214px 331px, rgba(255, 255, 255, 0.85) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 411px 88px, rgba(240, 216, 0, 0.6) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 128px 256px, rgba(255, 255, 255, 0.4) 50%, transparent 51%);
+  background-size:
+    487px 421px,
+    563px 499px,
+    521px 457px,
+    613px 541px,
+    577px 467px;
+  opacity: 1;
+}
+
+/* The dot grid recedes into the sky — present for orientation, not drawn on */
+:root:not([data-cosmos]) .react-flow__background {
+  opacity: 0.25;
+}
+
 /* The harvest's star burst: each star flies out from the dialog's centre on
    its own path (--dx/--dy), spinning gently and fading as it goes. Runs once. */
 @keyframes harvest-star {

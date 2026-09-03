@@ -27,6 +27,9 @@ model User {
   sessions     Session[]
   areas        LifeArea[]
   projects     Project[]
+  forumPosts   ForumPost[]
+  forumVotes   ForumVote[]
+  forumReplies ForumReply[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }
@@ -156,4 +159,52 @@ model Reflection {
   why         String
   nextStep    String
   createdAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// The Forum — the community's voice. Posts appear anonymous (or under a name
+// the author chose to sign with); the author link below exists so the admin
+// can see who wrote what and so votes stay one-per-person. It is never sent
+// to other users' browsers.
+// ---------------------------------------------------------------------------
+
+model ForumPost {
+  id          String       @id @default(cuid())
+  kind        String // experience (left column) | idea (right, votable)
+  body        String
+  // The signature the author chose for this post; null reads as Anonymous.
+  displayName String?
+  author      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId      String?
+  // LUMA's stamp on an idea: planned | implemented | null.
+  status      String?
+  votes       ForumVote[]
+  replies     ForumReply[]
+  createdAt   DateTime     @default(now())
+}
+
+model ForumVote {
+  id     String    @id @default(cuid())
+  post   ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId String
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  value  Int // +1 (like) or -1 (dislike)
+
+  // One vote per person per idea — switching sides updates this row.
+  @@unique([postId, userId])
+}
+
+model ForumReply {
+  id          String    @id @default(cuid())
+  post        ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId      String
+  body        String
+  displayName String? // as on posts; ignored when LUMA speaks
+  // True when the reply was written by the admin — rendered as LUMA, with
+  // the sun-headed avatar, regardless of the admin's own account name.
+  isLuma      Boolean   @default(false)
+  author      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId      String?
+  createdAt   DateTime  @default(now())
 }

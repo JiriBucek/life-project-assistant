@@ -20,7 +20,7 @@ export function AreaNode({ data }: NodeProps<AreaNodeData>) {
 
   return (
     <div
-      className="ellie-rise w-72 rounded-2xl border border-sky/40"
+      className="ellie-rise w-[22rem] rounded-2xl border border-sky/40"
       style={{
         backgroundColor:
           "color-mix(in srgb, var(--sky-tint) 55%, var(--paper-raised))",
@@ -65,7 +65,7 @@ export function AreaNode({ data }: NodeProps<AreaNodeData>) {
           <InlineEdit
             value={data.name}
             onCommit={(name) => h.updateArea(data.id, { name })}
-            className="font-serif text-lg font-medium text-ink"
+            className="font-serif text-xl font-medium text-ink"
           />
           {data.projectCount > 0 && (
             <span
